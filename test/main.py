@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import os
 import base64
-from auth import *
+from test.auth import *
 from urllib.parse import urlparse, parse_qs
 import json
 
