@@ -66,22 +66,6 @@ def recently_listened():
     if not decrypted_token:
         return redirect(url_for('login'))
 
-    # sp = spotipy.Spotify(auth=decrypted_token)
-    # recently_listened = get_recently_listened(session.get('user_id'))
-    # items = recently_listened["items"] 
-
-    # recent = ""
-    # for item in items:
-    #     track_name = item["track"]["name"]
-    #     artists = item["track"]["artists"]
-    #     album = item["track"]["album"]
-    #     # if album["album_type"] == "album":
-    #     artist_names = ""
-    #     for artist in artists:
-    #         artist_names += artist["name"] + ", "
-    #     recent += f"Album: {album["name"]}, Artist: {artist_names}, Track: {track_name}, <br>"
-    # return recent
-
 @app.route("/live")
 def live_listening():
     decrypted_token = get_valid_token(session['user_id'])
