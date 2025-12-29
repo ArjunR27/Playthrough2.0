@@ -49,7 +49,7 @@ def get_valid_token(user_id):
             'access_token': encrypted_access_token,
             'refresh_token': encrypted_refresh_token,
             'token_expires_at': new_token_info['expires_at']
-        }).eq("user_id", session['user_id']).execute()
+        }).eq("user_id", user_id).execute()
 
         return new_token_info['access_token']
 
