@@ -28,6 +28,13 @@ if [ -f logs/beat.pid ]; then
     echo "Celery beat stopped"
 fi
 
+# Stop Vite dev server
+if [ -f logs/vite.pid ]; then
+    kill $(cat logs/vite.pid) 2>/dev/null
+    rm logs/vite.pid
+    echo "Vite dev server stopped"
+fi
+
 # Stop Redis
 redis-cli shutdown 2>/dev/null
 echo "Redis stopped"

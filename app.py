@@ -9,6 +9,8 @@ import time
 from supabase import create_client, Client
 from album_tracking import *
 from validate_token import *
+from flask import Flask
+from flask_cors import CORS
 
 load_dotenv()
 app = Flask(__name__)
@@ -70,7 +72,6 @@ def recently_listened():
     one_hour_ago = int((time.time() - 3600) * 1000)
     recently_listened = sp.current_user_recently_played(limit=50, after=one_hour_ago)
     items = recently_listened["items"] 
-
     recent = ""
     for item in items:
         track_name = item["track"]["name"]
@@ -81,7 +82,7 @@ def recently_listened():
         for artist in artists:
             artist_names += artist["name"] + ", "
         recent += f"Album: {album["name"]}, Artist: {artist_names}, Track: {track_name}, <br>"
-    return recent
+    return items
 
 @app.route("/live")
 def live_listening():
