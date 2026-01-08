@@ -82,7 +82,7 @@ def recently_listened():
         for artist in artists:
             artist_names += artist["name"] + ", "
         recent += f"Album: {album["name"]}, Artist: {artist_names}, Track: {track_name}, <br>"
-    return items
+    return recent
 
 @app.route("/live")
 def live_listening():
