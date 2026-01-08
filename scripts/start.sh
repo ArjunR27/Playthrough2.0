@@ -43,7 +43,6 @@ echo $VITE_PID > logs/vite.pid
 
 echo -e "${BLUE}All services running in background.${NC}"
 echo -e "${BLUE}Backend: http://127.0.0.1:3000${NC}"
-echo -e "${BLUE}Frontend: http://localhost:5173${NC}"
 echo -e "${BLUE}Logs available in logs/ directory${NC}"
 echo -e "${BLUE}To stop services, run: ./stop.sh${NC}"
 echo -e "${BLUE}To view logs: tail -f logs/flask.log or logs/vite.log${NC}"
