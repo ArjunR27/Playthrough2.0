@@ -1,7 +1,7 @@
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
-from flask import Flask, request, url_for, redirect, render_template, session
+from flask import Flask, request, url_for, redirect, render_template, session, jsonify
 from cryptography.fernet import Fernet
 import os
 import base64
@@ -72,17 +72,21 @@ def recently_listened():
     one_hour_ago = int((time.time() - 3600) * 1000)
     recently_listened = sp.current_user_recently_played(limit=50, after=one_hour_ago)
     items = recently_listened["items"] 
-    recent = ""
+    recents = []
     for item in items:
-        track_name = item["track"]["name"]
-        artists = item["track"]["artists"]
-        album = item["track"]["album"]
-        # if album["album_type"] == "album":
-        artist_names = ""
-        for artist in artists:
-            artist_names += artist["name"] + ", "
-        recent += f"Album: {album["name"]}, Artist: {artist_names}, Track: {track_name}, <br>"
-    return recent
+        recents.append({
+            'track_name': item["track"]["name"],
+            'artists' : [a["name"] for a in item["track"]["artists"]],
+            'album_name': item['track']['album']['name'],
+            "album_type": item['track']['album']['album_type'],
+            'album_id': item["track"]["album"]["id"],
+            "album_image": item["track"]["album"]["images"][0]["url"],
+            "album_image_height": item["track"]["album"]["images"][0]["height"],
+            "album_image_width": item["track"]["album"]["images"][0]["width"],
+            "played_at": item['played_at']
+        })
+
+    return jsonify(recents)
 
 @app.route("/live")
 def live_listening():

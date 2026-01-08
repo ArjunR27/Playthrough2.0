@@ -28,6 +28,13 @@ if [ -f logs/beat.pid ]; then
     echo "Celery beat stopped"
 fi
 
+# Stop Next.js
+if [ -f logs/next.pid ]; then
+    kill $(cat logs/next.pid) 2>/dev/null
+    rm logs/next.pid
+    echo "Next.js stopped"
+fi
+
 # Stop Redis
 redis-cli shutdown 2>/dev/null
 echo "Redis stopped"

@@ -17,11 +17,27 @@ redis-server --daemonize yes
 # Give Redis a moment to start
 sleep 2
 
+# Next.js config
+NEXT_HOST="127.0.0.1"
+NEXT_PORT="8080"
+
 # Start Flask app
 echo -e "${GREEN}Starting Flask app...${NC}"
 nohup python app.py > logs/flask.log 2>&1 &
 FLASK_PID=$!
 echo "Flask started (PID: $FLASK_PID)"
+
+# Start Next.js frontend
+if [ -d frontend ]; then
+    echo -e "${GREEN}Starting Next.js frontend...${NC}"
+    pushd frontend >/dev/null
+    nohup npm run dev -- --hostname "$NEXT_HOST" --port "$NEXT_PORT" > ../logs/next.log 2>&1 &
+    NEXT_PID=$!
+    popd >/dev/null
+    echo "Next.js started (PID: $NEXT_PID)"
+else
+    echo -e "${GREEN}frontend/ not found; skipping Next.js startup.${NC}"
+fi
 
 # Start Celery worker
 echo -e "${GREEN}Starting Celery worker...${NC}"
@@ -39,10 +55,13 @@ echo "Celery beat started (PID: $BEAT_PID)"
 echo $FLASK_PID > logs/flask.pid
 echo $WORKER_PID > logs/worker.pid
 echo $BEAT_PID > logs/beat.pid
-echo $VITE_PID > logs/vite.pid
+if [ -n "$NEXT_PID" ]; then
+    echo $NEXT_PID > logs/next.pid
+fi
 
 echo -e "${BLUE}All services running in background.${NC}"
 echo -e "${BLUE}Backend: http://127.0.0.1:3000${NC}"
+echo -e "${BLUE}Frontend: http://${NEXT_HOST}:${NEXT_PORT}${NC}"
 echo -e "${BLUE}Logs available in logs/ directory${NC}"
 echo -e "${BLUE}To stop services, run: ./stop.sh${NC}"
-echo -e "${BLUE}To view logs: tail -f logs/flask.log or logs/vite.log${NC}"
+echo -e "${BLUE}To view logs: tail -f logs/flask.log or logs/next.log${NC}"
