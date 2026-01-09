@@ -1,17 +1,16 @@
-import spotipy
-from spotipy.oauth2 import SpotifyOAuth
-from dotenv import load_dotenv
-from flask import Flask, request, url_for, redirect, render_template, session, jsonify
-from cryptography.fernet import Fernet
-import os
 import base64
+import os
 import time
+
+import spotipy
+from cryptography.fernet import Fernet
+from dotenv import load_dotenv
+from flask import Flask, jsonify, redirect, request, session, url_for
 from supabase import create_client, Client
-from album_tracking import *
-from validate_token import *
-from flask import Flask
 from flask_cors import CORS
 
+from backend.album_tracking import get_albums_completion
+from backend.validate_token import get_spotify_oauth, get_valid_token
 load_dotenv()
 app = Flask(__name__)
 app.config["SECRET_KEY"] = base64.b64decode(os.getenv("FLASK_SECRET_KEY"))

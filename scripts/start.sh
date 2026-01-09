@@ -23,7 +23,7 @@ NEXT_PORT="8080"
 
 # Start Flask app
 echo -e "${GREEN}Starting Flask app...${NC}"
-nohup python app.py > logs/flask.log 2>&1 &
+nohup python -m backend.app > logs/flask.log 2>&1 &
 FLASK_PID=$!
 echo "Flask started (PID: $FLASK_PID)"
 
@@ -41,13 +41,13 @@ fi
 
 # Start Celery worker
 echo -e "${GREEN}Starting Celery worker...${NC}"
-nohup celery -A album_tracking worker --loglevel=info > logs/celery_worker.log 2>&1 &
+nohup celery -A backend.album_tracking worker --loglevel=info > logs/celery_worker.log 2>&1 &
 WORKER_PID=$!
 echo "Celery worker started (PID: $WORKER_PID)"
 
 # Start Celery beat
 echo -e "${GREEN}Starting Celery beat...${NC}"
-nohup celery -A album_tracking beat --loglevel=info > logs/celery_beat.log 2>&1 &
+nohup celery -A backend.album_tracking beat --loglevel=info > logs/celery_beat.log 2>&1 &
 BEAT_PID=$!
 echo "Celery beat started (PID: $BEAT_PID)"
 

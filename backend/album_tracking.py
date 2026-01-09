@@ -6,11 +6,11 @@ import os
 import time
 from celery import Celery
 from celery.schedules import crontab
-from validate_token import *
+from backend.validate_token import get_valid_token
 
 load_dotenv()
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_API_KEY"))
-celery = Celery("album_tracking", broker="redis://localhost:6379/0")
+celery = Celery("backend.album_tracking", broker="redis://localhost:6379/0")
 celery.conf.timezone = 'UTC'
 
 
@@ -22,7 +22,7 @@ celery.conf.timezone = 'UTC'
 
 celery.conf.beat_schedule = {
     'track-listening-every-hour': {
-        'task': 'album_tracking.track_all_users_recently_listened',
+        'task': 'backend.album_tracking.track_all_users_recently_listened',
         'schedule': crontab(minute=45)
         # 'schedule': crontab(minute='*/5'),  # Every 5 minutes
     },
@@ -130,4 +130,3 @@ def get_albums_completion(user_id):
             'percentage': row['listened'] / row['total']
         })
     return output
-
