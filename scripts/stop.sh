@@ -39,4 +39,7 @@ fi
 redis-cli shutdown 2>/dev/null
 echo "Redis stopped"
 
+# Remove Spotify token cache
+rm -f .cache cache
+
 echo -e "${BLUE}All services stopped${NC}"
