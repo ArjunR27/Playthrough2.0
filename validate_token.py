@@ -1,5 +1,6 @@
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+from spotipy.cache_handler import CacheFileHandler
 from dotenv import load_dotenv
 from cryptography.fernet import Fernet
 import os
@@ -7,18 +8,30 @@ import time
 from supabase import create_client, Client
 from flask import session
 
+
 load_dotenv()
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_API_KEY"))
 encryption_key = os.getenv("ENCRYPTION_KEY_DEV")
 cipher = Fernet(encryption_key.encode())
 
 def get_spotify_oauth():
+    cache_path = os.getenv("CACHE_PATH")
+    if not cache_path:
+        cache_dir = os.path.join(os.path.expanduser("~"), ".playthrough_cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_path = os.path.join(cache_dir, "spotify_token")
+    
+    cache_handler = CacheFileHandler(cache_path=cache_path)
+
     sp_oauth = SpotifyOAuth(
         client_id=os.getenv("SPOTIFY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
         redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI"),
         scope="user-read-recently-played user-read-playback-state",
+        cache_handler=cache_handler,
+        show_dialog=True,
         )
+    
     return sp_oauth
 
 def get_valid_token(user_id):
