@@ -1,4 +1,6 @@
-import { cookies } from "next/headers"; 
+"use client"
+
+import { useState, useEffect } from 'react';  
 import Image from 'next/image'; 
 
 type Recent = {
@@ -21,23 +23,6 @@ type URLProp = {
     url: string
 }
 
-async function getRecents(): Promise<Recent []> {
-    const cookieStore = cookies();
-    const cookieHeader = (await cookieStore).getAll().map((c) => `${c.name}=${c.value}`).join(";");
-
-    const res = await fetch("http://127.0.0.1:3000/recents", { 
-        headers: { cookie: cookieHeader },
-        cache: "no-store"
-    });
-
-    if (!res.ok) {
-        throw new Error(`Failed ${res.status} ${res.statusText}`);
-    }
-    else {
-        return (await res.json()) as Recent[]; 
-    }
-}
-
 function Header({ title }: HeaderProps): React.ReactElement {
     return <h1> { title } </h1>; 
 }
@@ -55,8 +40,47 @@ function AlbumCover({ url }: URLProp): React.ReactElement {
     )
 }
 
-export default async function RecentlyListenedPage() {
-    const recents = await getRecents(); 
+export default function RecentlyListenedPage() {
+    const [recents, setRecents] = useState<Recent[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null); 
+
+    useEffect(() => {
+        async function fetchRecents() {
+            try {
+                const res = await fetch("http://127.0.0.1:3000/recents", {
+                    cache: "no-store",
+                    credentials: "include", 
+                }); 
+
+                if (res.status === 401) {
+                    const body = await res.json().catch(() => ({}));
+                    const loginUrl = body?.login_url ?? "http://127.0.0.1:3000/";
+                    // changes the current url to the login url because the user is not correctly authenticated with spotify
+                    window.location.href = loginUrl;
+                    return
+                }
+
+                if (!res.ok) {
+                    throw new Error('Failed to fetch recents')
+                }
+
+                const data = await res.json();
+                setRecents(data)
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'An error occured'); 
+            } finally {
+                setLoading(false); 
+            }
+        }
+
+        fetchRecents(); 
+
+    }, [])
+
+    if (loading) return <div> Loading... </div>;
+    if (error) return <div> Error... </div>; 
+
     return (
         <div>
             <Header title = 'Recently Listened Songs' />

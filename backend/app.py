@@ -13,7 +13,9 @@ from backend.album_tracking import get_albums_completion
 from backend.validate_token import get_spotify_oauth, get_valid_token
 load_dotenv()
 app = Flask(__name__)
+CORS(app, origins='http://127.0.0.1:8080', supports_credentials=True)
 app.config["SECRET_KEY"] = base64.b64decode(os.getenv("FLASK_SECRET_KEY"))
+
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_API_KEY"))
 encryption_key = os.getenv("ENCRYPTION_KEY_DEV")
 cipher = Fernet(encryption_key.encode())
@@ -65,7 +67,10 @@ def profile():
 def recently_listened():
     decrypted_token = get_valid_token(session.get('user_id'))
     if not decrypted_token:
-        return redirect(url_for('login'))
+        return jsonify({
+            "error": "unauthorized",
+            "login_url": url_for("login", _external=True),
+        }), 401
 
     sp = spotipy.Spotify(auth=decrypted_token)
     one_hour_ago = int((time.time() - 3600) * 1000)
