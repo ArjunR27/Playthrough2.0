@@ -32,7 +32,7 @@ def callback_page():
     code = request.args.get('code')
     sp_oauth = get_spotify_oauth()
     
-    token_info = sp_oauth.get_access_token(code)
+    token_info = sp_oauth.get_access_token(code, check_cache=False)
 
     # Populate Users Table
     encrypted_access_token = cipher.encrypt(token_info['access_token'].encode()).decode()

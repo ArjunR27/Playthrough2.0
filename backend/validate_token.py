@@ -1,6 +1,6 @@
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from spotipy.cache_handler import CacheFileHandler
+from spotipy.cache_handler import MemoryCacheHandler
 from dotenv import load_dotenv
 from cryptography.fernet import Fernet
 import os
@@ -15,13 +15,7 @@ encryption_key = os.getenv("ENCRYPTION_KEY_DEV")
 cipher = Fernet(encryption_key.encode())
 
 def get_spotify_oauth():
-    cache_path = os.getenv("CACHE_PATH")
-    if not cache_path:
-        cache_dir = os.path.join(os.path.expanduser("~"), ".playthrough_cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        cache_path = os.path.join(cache_dir, "spotify_token")
-    
-    cache_handler = CacheFileHandler(cache_path=cache_path)
+    cache_handler = MemoryCacheHandler()
 
     sp_oauth = SpotifyOAuth(
         client_id=os.getenv("SPOTIFY_CLIENT_ID"),
