@@ -106,7 +106,15 @@ def live_listening():
 
 @app.route("/tracking")
 def album_tracker():
-    return get_albums_completion(session['user_id'])
+    decrypted_token = get_valid_token(session.get('user_id'))
+    if not decrypted_token:
+        return jsonify({
+            "error": "unauthorized",
+            "login_url": url_for("login", _external=True),
+        }), 401
+    
+    albums = get_albums_completion(session['user_id'])
+    return jsonify(albums)
 
     
 
