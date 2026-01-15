@@ -50,7 +50,7 @@ def callback_page():
         'token_expires_at': token_info['expires_at']
     }).execute()
 
-    return redirect(url_for('profile'))  
+    return redirect('http://127.0.0.1:8080')
 
 @app.route("/profile")
 def profile():
