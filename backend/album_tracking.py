@@ -127,6 +127,7 @@ def get_albums_completion(user_id):
             'artist': row['primary_artist'],
             'listened': row['listened'],
             'total': row['total'],
-            'percentage': row['listened'] / row['total']
+            'percentage': row['listened'] / row['total'],
+            'album_image': row['album_image'],
         })
     return output
