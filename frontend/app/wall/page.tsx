@@ -27,6 +27,7 @@ function AlbumCover({ url }: URLProp): React.ReactElement {
                 alt="Album Cover"
                 width={200}
                 height={200}
+                className="object-cover"
             />
         </div>
     )
@@ -107,7 +108,7 @@ export default function WallPage() {
                             >
                                 <div className="flex flex-col items-center">
                                     {/* Album Image - Fixed size for all albums */}
-                                    <div className="w-[300px] h-[300px] rounded-lg mb-4 overflow-hidden bg-gray-700 flex items-center justify-center">
+                                    <div className="w-[200px] h-[200px] rounded-lg mb-4 overflow-hidden bg-gray-700 flex items-center justify-center">
                                         {album.album_image ? (
                                             <AlbumCover url={album.album_image} />
                                         ) : (
