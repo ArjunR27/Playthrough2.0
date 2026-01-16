@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from 'react';  
-import Image from 'next/image'; 
+import { useState, useEffect } from 'react';
+import Image from 'next/image';
 
 type Recent = {
     track_name: string;
@@ -15,16 +15,8 @@ type Recent = {
     played_at: string
 }
 
-type HeaderProps = {
-    title?: string;
-}
-
 type URLProp = {
     url: string
-}
-
-function Header({ title }: HeaderProps): React.ReactElement {
-    return <h1> { title } </h1>; 
 }
 
 function AlbumCover({ url }: URLProp): React.ReactElement {
@@ -35,9 +27,18 @@ function AlbumCover({ url }: URLProp): React.ReactElement {
                 alt="Album Cover"
                 width={200}
                 height={200}
+                className="object-cover"
             />
         </div>
     )
+}
+
+function formatPlayedAt(playedAt: string): string {
+    const date = new Date(playedAt);
+    if (Number.isNaN(date.getTime())) {
+        return playedAt;
+    }
+    return date.toLocaleString();
 }
 
 export default function RecentlyListenedPage() {
@@ -78,25 +79,73 @@ export default function RecentlyListenedPage() {
 
     }, [])
 
-    if (loading) return <div> Loading... </div>;
-    if (error) return <div> Error... </div>; 
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
+                <div className="text-white text-xl">Loading...</div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
+                <div className="text-red-500">Error: {error}</div>
+            </div>
+        );
+    }
 
     return (
-        <div>
-            <Header title = 'Recently Listened Songs' />
-            <ul>
-                {recents.map((song) => (
-                    <li key={ song.track_name + song.played_at}> Song: {song.track_name} 
-                        <ul>
-                            { song.artists.map((artist) => (
-                                <li key={ artist } > Artist: { artist }</li>
-                            ))}
-                            <li> Album: { song.album_name }</li>
-                            <AlbumCover url = { song.album_image } />
-                        </ul>
-                    </li> 
-                ))}
-            </ul>
+        <div className="min-h-screen p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
+            <div className="max-w-7xl mx-auto">
+                <h1 className="text-4xl font-bold text-white mb-8 text-center">
+                    Recently Listened Songs
+                </h1>
+
+                {recents.length === 0 ? (
+                    <div className="text-center text-white/70 text-lg">
+                        No recent listens yet. Play something to see it here.
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-3 gap-6">
+                        {recents.map((song) => (
+                            <div
+                                key={song.track_name + song.played_at}
+                                className="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-6 hover:bg-white/20 transition-all duration-200"
+                            >
+                                <div className="flex flex-col items-center">
+                                    <div className="w-[200px] h-[200px] rounded-lg mb-4 overflow-hidden bg-gray-700 flex items-center justify-center">
+                                        {song.album_image ? (
+                                            <AlbumCover url={song.album_image} />
+                                        ) : (
+                                            <div className="text-center">
+                                                <div className="text-white/30 text-2xl mb-2">No cover</div>
+                                                <span className="text-white/40 text-sm">Missing artwork</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <h2 className="text-xl font-bold text-white mb-2 text-center">
+                                        {song.track_name}
+                                    </h2>
+
+                                    <p className="text-white/70 mb-2 text-center">
+                                        {song.artists.join(', ')}
+                                    </p>
+
+                                    <p className="text-white/60 mb-4 text-center">
+                                        {song.album_name}
+                                    </p>
+
+                                    <div className="text-white/70 text-sm text-center">
+                                        Played {formatPlayedAt(song.played_at)}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     ); 
 }
