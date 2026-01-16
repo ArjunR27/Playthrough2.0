@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 
 type Album = {
     album_id: string;
@@ -9,7 +10,28 @@ type Album = {
     listened: number;
     total: number;
     percentage: number;
+    album_image?: string | null;
+    album_image_height?: number | null;
+    album_image_width?: number | null;
 }
+
+type URLProp = {
+    url: string
+}
+
+function AlbumCover({ url }: URLProp): React.ReactElement {
+    return (
+        <div>
+            <Image
+                src={ url }
+                alt="Album Cover"
+                width={200}
+                height={200}
+            />
+        </div>
+    )
+}
+
 
 export default function WallPage() {
     const [albums, setAlbums] = useState<Album[]>([]);
@@ -51,15 +73,15 @@ export default function WallPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="text-xl">Loading...</div>
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
+                <div className="text-white text-xl">Loading...</div>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
                 <div className="text-red-500">Error: {error}</div>
             </div>
         );
@@ -84,11 +106,16 @@ export default function WallPage() {
                                 className="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-6 hover:bg-white/20 transition-all duration-200"
                             >
                                 <div className="flex flex-col items-center">
-                                    <div className="w-[300px] h-[300px] bg-gradient-to-br from-gray-700 to-gray-800 rounded-lg mb-4 flex items-center justify-center border-2 border-white/20">
-                                        <div className="text-center">
-                                            <div className="text-white/30 text-6xl mb-2">🎵</div>
-                                            <span className="text-white/40 text-sm">Album Cover</span>
-                                        </div>
+                                    {/* Album Image - Fixed size for all albums */}
+                                    <div className="w-[300px] h-[300px] rounded-lg mb-4 overflow-hidden bg-gray-700 flex items-center justify-center">
+                                        {album.album_image ? (
+                                            <AlbumCover url={album.album_image} />
+                                        ) : (
+                                            <div className="text-center">
+                                                <div className="text-white/30 text-6xl mb-2">🎵</div>
+                                                <span className="text-white/40 text-sm">{album.album_image}</span>
+                                            </div>
+                                        )}
                                     </div>
                                     
                                     <h2 className="text-xl font-bold text-white mb-2 text-center">

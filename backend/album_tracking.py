@@ -58,6 +58,9 @@ def get_recently_listened(user_id):
         artist_id = primary_artist["id"]
         artist_name = primary_artist["name"]
         total_tracks = album["total_tracks"]
+        album_image = album["images"][0]["url"]
+        album_image_height = album["images"][0]["height"]
+        album_image_width = album["images"][0]["width"]
 
         album_exists = supabase.table("albums")\
             .select('album_id')\
@@ -73,7 +76,10 @@ def get_recently_listened(user_id):
                 'album_type': album_type,
                 'artist_id': artist_id,
                 'artist_name': artist_name,
-                'total_tracks': total_tracks
+                'total_tracks': total_tracks,
+                'album_image': album_image,
+                'album_image_height': album_image_height,
+                'album_image_width': album_image_width
             }).execute()
 
             for track in album_info["tracks"]["items"]:
@@ -114,7 +120,66 @@ def get_recently_listened(user_id):
                 'artist_order': idx
             }).execute()
          
+def backfill_album_images():
+    """
+    One-time function to backfill album images for albums missing image data.
+    """
+    # Get all albums missing image data
+    albums = supabase.table('albums')\
+        .select('album_id, album_name')\
+        .or_('album_image.is.null,album_image_height.is.null,album_image_width.is.null')\
+        .execute()
+    
+    if not albums.data:
+        print("No albums need image backfilling.")
+        return
+    
+    print(f"Found {len(albums.data)} albums missing image data.")
+    
+    # Get first user's token for Spotify API access
+    users = supabase.table('users').select('user_id').limit(1).execute()
+    if not users.data:
+        print("No users found.")
+        return
+    
+    user_id = users.data[0]['user_id']
+    decrypted_token = get_valid_token(user_id)
+    if not decrypted_token:
+        print("Could not get valid token.")
+        return
+    
+    sp = spotipy.Spotify(auth=decrypted_token)
+    
+    # Update each album
+    for album in albums.data:
+        album_id = album['album_id']
+        try:
+            album_info = sp.album(album_id)
+            
+            album_image = None
+            album_image_height = None
+            album_image_width = None
+            
+            if album_info.get('images') and len(album_info['images']) > 0:
+                album_image = album_info['images'][0]['url']
+                album_image_height = album_info['images'][0].get('height')
+                album_image_width = album_info['images'][0].get('width')
+            
+            supabase.table('albums').update({
+                'album_image': album_image,
+                'album_image_height': album_image_height,
+                'album_image_width': album_image_width
+            }).eq('album_id', album_id).execute()
+            
+            print(f"Updated {album['album_name']}")
+            time.sleep(0.1)  # Small delay to avoid rate limiting
+            
+        except Exception as e:
+            print(f"Error updating {album['album_name']}: {e}")
+    
+    print("Backfill complete!")
 
+    
 def get_albums_completion(user_id):
     # this is an rpc call to a query i created in supabase that gives me what i want
     # way faster
