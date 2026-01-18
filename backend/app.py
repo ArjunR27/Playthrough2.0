@@ -56,12 +56,24 @@ def callback_page():
 def profile():
     decrypted_token = get_valid_token(session.get('user_id'))
     if not decrypted_token:
-        return redirect(url_for('login'))
+        return jsonify({
+            "error": "unauthorized",
+            "login_url": url_for("login", _external=True),
+        }), 401
     
     sp = spotipy.Spotify(auth=decrypted_token)
     user_data = sp.current_user()
 
-    return f"Hello {user_data['display_name']}. You are authorized!"
+    return jsonify({
+        "id": user_data.get("id"),
+        "display_name": user_data.get("display_name"),
+        "email": user_data.get("email"),
+        "images": user_data.get("images", []),
+        "followers": user_data.get("followers", {}).get("total", 0),
+        "external_urls": user_data.get("external_urls", {}),
+        "country": user_data.get("country"),
+        "product": user_data.get("product"),  # free, premium, etc.
+    })
 
 @app.route("/recents")
 def recently_listened():
@@ -115,6 +127,11 @@ def album_tracker():
     
     albums = get_albums_completion(session['user_id'])
     return jsonify(albums)
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return jsonify({"message": "Logged out successfully"}), 200
 
     
 

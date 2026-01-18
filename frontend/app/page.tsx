@@ -1,102 +1,69 @@
 "use client"
 
-import { useState, useEffect } from 'react';  
-import Image from 'next/image'; 
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-type Recent = {
-    track_name: string;
-    artists: string[],
-    album_name: string,
-    album_type: string,
-    album_id: string,
-    album_image: string,
-    album_image_height: number, 
-    album_image_width: number,
-    played_at: string
-}
-
-type HeaderProps = {
-    title?: string;
-}
-
-type URLProp = {
-    url: string
-}
-
-function Header({ title }: HeaderProps): React.ReactElement {
-    return <h1> { title } </h1>; 
-}
-
-function AlbumCover({ url }: URLProp): React.ReactElement {
-    return (
-        <div>
-            <Image
-                src={ url }
-                alt="Album Cover"
-                width={200}
-                height={200}
-            />
-        </div>
-    )
-}
-
-export default function RecentlyListenedPage() {
-    const [recents, setRecents] = useState<Recent[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null); 
+export default function HomePage() {
+    const [isChecking, setIsChecking] = useState(true);
+    const router = useRouter();
 
     useEffect(() => {
-        async function fetchRecents() {
+        async function checkAuth() {
             try {
-                const res = await fetch("http://127.0.0.1:3000/recents", {
+                const res = await fetch("http://127.0.0.1:3000/tracking", {
                     cache: "no-store",
-                    credentials: "include", 
-                }); 
+                    credentials: "include",
+                });
 
                 if (res.status === 401) {
-                    const body = await res.json().catch(() => ({}));
-                    const loginUrl = body?.login_url ?? "http://127.0.0.1:3000/";
-                    // changes the current url to the login url because the user is not correctly authenticated with spotify
-                    window.location.href = loginUrl;
-                    return
+                    // Not logged in, show marketing page
+                    setIsChecking(false);
+                    return;
                 }
 
-                if (!res.ok) {
-                    throw new Error('Failed to fetch recents')
+                if (res.ok) {
+                    // Logged in, redirect to dashboard
+                    router.push('/dashboard');
+                    return;
                 }
 
-                const data = await res.json();
-                setRecents(data)
+                // If there's an error, show marketing page
+                setIsChecking(false);
             } catch (err) {
-                setError(err instanceof Error ? err.message : 'An error occured'); 
-            } finally {
-                setLoading(false); 
+                // On error, show marketing page
+                setIsChecking(false);
             }
         }
 
-        fetchRecents(); 
+        checkAuth();
+    }, [router]);
 
-    }, [])
+    // Show loading state while checking auth
+    if (isChecking) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
+                <div className="text-white text-xl">Loading...</div>
+            </div>
+        );
+    }
 
-    if (loading) return <div> Loading... </div>;
-    if (error) return <div> Error... </div>; 
-
+    // Show marketing page if not logged in
     return (
-        <div>
-            <Header title = 'Recently Listened Songs' />
-            <ul>
-                {recents.map((song) => (
-                    <li key={ song.track_name + song.played_at}> Song: {song.track_name} 
-                        <ul>
-                            { song.artists.map((artist) => (
-                                <li key={ artist } > Artist: { artist }</li>
-                            ))}
-                            <li> Album: { song.album_name }</li>
-                            <AlbumCover url = { song.album_image } />
-                        </ul>
-                    </li> 
-                ))}
-            </ul>
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
+            <div className="max-w-4xl mx-auto text-center px-8">
+                <h1 className="text-6xl font-bold text-white mb-6">
+                    Playthrough
+                </h1>
+                <p className="text-xl text-white/80 mb-12">
+                    Track your album listening progress and discover your music journey
+                </p>
+                <a
+                    href="http://127.0.0.1:3000/"
+                    className="inline-block bg-white text-[#191414] font-semibold px-8 py-4 rounded-full hover:bg-white/90 transition-all duration-200 text-lg shadow-lg"
+                >
+                    Track now
+                </a>
+            </div>
         </div>
-    ); 
+    );
 }
