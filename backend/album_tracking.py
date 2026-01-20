@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 import os
 import time
-from celery import Celery
+from celery import Celery, group
 from celery.schedules import crontab
 from backend.validate_token import get_valid_token
 
@@ -33,8 +33,11 @@ celery.conf.beat_schedule = {
 @celery.task
 def track_all_users_recently_listened():
     users_response = supabase.table('users').select('user_id').execute()
-    for user in users_response.data:
-        get_recently_listened(user['user_id'])
+    job = group(
+        get_recently_listened.s(user['user_id'])
+        for user in users_response.data
+    )
+    job.apply_async()
 
 # get 50 tracks within last 1 hour
 @celery.task
