@@ -199,3 +199,21 @@ def get_albums_completion(user_id):
             'album_image': row['album_image'],
         })
     return output
+
+
+def get_album_tracks(user_id: str, album_id: str):
+    resp = supabase.rpc(
+        'get_album_tracks',
+        {'p_user_id': user_id, 'p_album_id': album_id}
+    ).execute()
+
+    output = []
+    for row in resp.data:
+        output.append({
+            'track_id': row['track_id'],
+            'track_name': row['track_name'],
+            'track_number': row['track_number'],
+            'is_listened': row['is_listened'],
+        })
+
+    return output

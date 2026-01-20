@@ -54,7 +54,7 @@ export default function Navbar() {
     ];
 
     return (
-        <nav className="bg-white/10 backdrop-blur-lg border-b border-white/20">
+        <nav className="bg-gradient-to-br from-[#191414] to-[#1DB954] border-b border-white/20">
             <div className="max-w-7xl mx-auto px-8 py-4">
                 <div className="flex items-center justify-between">
                     <Link href="/dashboard" className="text-2xl font-bold text-white">
