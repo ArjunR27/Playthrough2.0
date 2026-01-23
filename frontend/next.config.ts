@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
 
     return [
       {
+        source: "/api/auth/callback",
+        destination: `${apiProxyTarget}/api/auth/callback`,
+      },
+      {
         source: "/api/:path*",
         destination: `${apiProxyTarget}/:path*`,
       },
