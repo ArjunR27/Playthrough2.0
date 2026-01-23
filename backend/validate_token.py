@@ -1,7 +1,7 @@
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from spotipy.cache_handler import MemoryCacheHandler
-from dotenv import load_dotenv
+from env import load_environment
 from cryptography.fernet import Fernet
 import os
 import time
@@ -9,9 +9,11 @@ from supabase import create_client, Client
 from flask import session
 
 
-load_dotenv()
+load_environment()
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_API_KEY"))
-encryption_key = os.getenv("ENCRYPTION_KEY_DEV")
+encryption_key = os.getenv("ENCRYPTION_KEY") or os.getenv("ENCRYPTION_KEY_DEV")
+if not encryption_key:
+    raise RuntimeError("ENCRYPTION_KEY is required")
 cipher = Fernet(encryption_key.encode())
 
 def get_spotify_oauth():

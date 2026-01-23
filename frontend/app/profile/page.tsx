@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { API_BASE } from '../lib/api';
 
 type ProfileData = {
     id: string;
@@ -24,14 +25,14 @@ export default function ProfilePage() {
     useEffect(() => {
         async function fetchProfile() {
             try {
-                const res = await fetch("http://127.0.0.1:3000/profile", {
+                const res = await fetch(`${API_BASE}/profile`, {
                     cache: "no-store",
                     credentials: "include",
                 });
 
                 if (res.status === 401) {
                     const body = await res.json().catch(() => ({}));
-                    const loginUrl = body?.login_url ?? "http://127.0.0.1:3000/";
+                    const loginUrl = body?.login_url ?? `${API_BASE}/`;
                     window.location.href = loginUrl;
                     return;
                 }
@@ -54,7 +55,7 @@ export default function ProfilePage() {
 
     const handleSignOut = async () => {
         try {
-            const res = await fetch("http://127.0.0.1:3000/logout", {
+            const res = await fetch(`${API_BASE}/logout`, {
                 method: "POST",
                 credentials: "include",
             });

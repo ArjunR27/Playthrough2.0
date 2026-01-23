@@ -22,10 +22,16 @@ NEXT_HOST="127.0.0.1"
 NEXT_PORT="8080"
 
 # Start Flask app
-echo -e "${GREEN}Starting Flask app...${NC}"
-nohup python -m backend.app > logs/flask.log 2>&1 &
-FLASK_PID=$!
-echo "Flask started (PID: $FLASK_PID)"
+if [ -d backend ]; then
+    echo -e "${GREEN}Starting Flask app...${NC}"
+    pushd backend >/dev/null
+    nohup python -m app > ../logs/flask.log 2>&1 &
+    FLASK_PID=$!
+    popd >/dev/null
+    echo "Flask started (PID: $FLASK_PID)"
+else
+    echo -e "${GREEN}backend/ not found; skipping Flask startup.${NC}"
+fi
 
 # Start Next.js frontend
 if [ -d frontend ]; then
@@ -40,21 +46,39 @@ else
 fi
 
 # Start Celery worker
-echo -e "${GREEN}Starting Celery worker...${NC}"
-nohup celery -A backend.album_tracking worker --loglevel=info > logs/celery_worker.log 2>&1 &
-WORKER_PID=$!
-echo "Celery worker started (PID: $WORKER_PID)"
+if [ -d backend ]; then
+    echo -e "${GREEN}Starting Celery worker...${NC}"
+    pushd backend >/dev/null
+    nohup celery -A album_tracking worker --loglevel=info > ../logs/celery_worker.log 2>&1 &
+    WORKER_PID=$!
+    popd >/dev/null
+    echo "Celery worker started (PID: $WORKER_PID)"
+else
+    echo -e "${GREEN}backend/ not found; skipping Celery worker.${NC}"
+fi
 
 # Start Celery beat
-echo -e "${GREEN}Starting Celery beat...${NC}"
-nohup celery -A backend.album_tracking beat --loglevel=info > logs/celery_beat.log 2>&1 &
-BEAT_PID=$!
-echo "Celery beat started (PID: $BEAT_PID)"
+if [ -d backend ]; then
+    echo -e "${GREEN}Starting Celery beat...${NC}"
+    pushd backend >/dev/null
+    nohup celery -A album_tracking beat --loglevel=info > ../logs/celery_beat.log 2>&1 &
+    BEAT_PID=$!
+    popd >/dev/null
+    echo "Celery beat started (PID: $BEAT_PID)"
+else
+    echo -e "${GREEN}backend/ not found; skipping Celery beat.${NC}"
+fi
 
 # Save PIDs to file for easy stopping
-echo $FLASK_PID > logs/flask.pid
-echo $WORKER_PID > logs/worker.pid
-echo $BEAT_PID > logs/beat.pid
+if [ -n "$FLASK_PID" ]; then
+    echo $FLASK_PID > logs/flask.pid
+fi
+if [ -n "$WORKER_PID" ]; then
+    echo $WORKER_PID > logs/worker.pid
+fi
+if [ -n "$BEAT_PID" ]; then
+    echo $BEAT_PID > logs/beat.pid
+fi
 if [ -n "$NEXT_PID" ]; then
     echo $NEXT_PID > logs/next.pid
 fi

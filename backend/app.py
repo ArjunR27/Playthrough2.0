@@ -4,20 +4,47 @@ import time
 
 import spotipy
 from cryptography.fernet import Fernet
-from dotenv import load_dotenv
+from env import load_environment
 from flask import Flask, jsonify, redirect, request, session, url_for
 from supabase import create_client, Client
 from flask_cors import CORS
 
-from backend.album_tracking import get_albums_completion, get_album_tracks
-from backend.validate_token import get_spotify_oauth, get_valid_token
-load_dotenv()
+from album_tracking import get_albums_completion, get_album_tracks
+from validate_token import get_spotify_oauth, get_valid_token
+load_environment()
+
+def _parse_cors_origins():
+    raw = os.getenv("CORS_ORIGINS")
+    if raw:
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    frontend_url = os.getenv("FRONTEND_URL")
+    if frontend_url:
+        return [frontend_url.rstrip("/")]
+    return ["http://127.0.0.1:8080", "http://localhost:8080"]
+
+def _is_production():
+    app_env = os.getenv("APP_ENV") or os.getenv("FLASK_ENV") or "development"
+    return app_env.lower() == "production"
+
 app = Flask(__name__)
-CORS(app, origins='http://127.0.0.1:8080', supports_credentials=True)
-app.config["SECRET_KEY"] = base64.b64decode(os.getenv("FLASK_SECRET_KEY"))
+CORS(app, origins=_parse_cors_origins(), supports_credentials=True)
+
+secret_key_b64 = os.getenv("FLASK_SECRET_KEY")
+if not secret_key_b64:
+    raise RuntimeError("FLASK_SECRET_KEY is required")
+app.config["SECRET_KEY"] = base64.b64decode(secret_key_b64)
+
+is_prod = _is_production()
+app.config["SESSION_COOKIE_SAMESITE"] = "None" if is_prod else "Lax"
+app.config["SESSION_COOKIE_SECURE"] = is_prod
+app.config["PREFERRED_URL_SCHEME"] = "https" if is_prod else "http"
+
+frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:8080").rstrip("/")
 
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_API_KEY"))
-encryption_key = os.getenv("ENCRYPTION_KEY_DEV")
+encryption_key = os.getenv("ENCRYPTION_KEY") or os.getenv("ENCRYPTION_KEY_DEV")
+if not encryption_key:
+    raise RuntimeError("ENCRYPTION_KEY is required")
 cipher = Fernet(encryption_key.encode())
 
 @app.route("/")
@@ -50,7 +77,7 @@ def callback_page():
         'token_expires_at': token_info['expires_at']
     }).execute()
 
-    return redirect('http://127.0.0.1:8080')
+    return redirect(frontend_url)
 
 @app.route("/profile")
 def profile():
@@ -106,7 +133,11 @@ def recently_listened():
 
 @app.route("/live")
 def live_listening():
-    decrypted_token = get_valid_token(session['user_id'])
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    decrypted_token = get_valid_token(user_id)
     if not decrypted_token:
         return redirect(url_for('login'))
 
@@ -151,7 +182,13 @@ def logout():
     session.clear()
     return jsonify({"message": "Logged out successfully"}), 200
 
+@app.route("/health")
+def health_check():
+    return jsonify({"status": "ok"}), 200
+
     
 
 if __name__ == "__main__":
-    app.run(host='127.0.0.1', port=3000)
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "3000"))
+    app.run(host=host, port=port)

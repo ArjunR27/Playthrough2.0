@@ -1,16 +1,16 @@
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from dotenv import load_dotenv
+from env import load_environment
 from supabase import create_client, Client
 import os
 import time
 from celery import Celery, group
 from celery.schedules import crontab
-from backend.validate_token import get_valid_token
+from validate_token import get_valid_token
 
-load_dotenv()
+load_environment()
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_API_KEY"))
-celery = Celery("backend.album_tracking", broker="redis://localhost:6379/0")
+celery = Celery("album_tracking", broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"))
 celery.conf.timezone = 'UTC'
 
 
@@ -22,7 +22,7 @@ celery.conf.timezone = 'UTC'
 
 celery.conf.beat_schedule = {
     'track-listening-every-hour': {
-        'task': 'backend.album_tracking.track_all_users_recently_listened',
+        'task': 'album_tracking.track_all_users_recently_listened',
         'schedule': crontab(minute=45)
         # 'schedule': crontab(minute='*/5'),  # Every 5 minutes
     },

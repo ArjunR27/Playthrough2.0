@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { API_BASE } from '../lib/api';
 
 type Recent = {
     track_name: string;
@@ -49,14 +50,14 @@ export default function RecentlyListenedPage() {
     useEffect(() => {
         async function fetchRecents() {
             try {
-                const res = await fetch("http://127.0.0.1:3000/recents", {
+                const res = await fetch(`${API_BASE}/recents`, {
                     cache: "no-store",
                     credentials: "include", 
                 }); 
 
                 if (res.status === 401) {
                     const body = await res.json().catch(() => ({}));
-                    const loginUrl = body?.login_url ?? "http://127.0.0.1:3000/";
+                    const loginUrl = body?.login_url ?? `${API_BASE}/`;
                     // changes the current url to the login url because the user is not correctly authenticated with spotify
                     window.location.href = loginUrl;
                     return

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { API_BASE } from '../lib/api';
 
 type Album = {
     album_id: string;
@@ -53,14 +54,14 @@ export default function WallPage() {
     useEffect(() => {
         async function fetchTracking() {
             try {
-                const res = await fetch("http://127.0.0.1:3000/tracking", {
+                const res = await fetch(`${API_BASE}/tracking`, {
                     cache: "no-store",
                     credentials: "include",
                 });
 
                 if (res.status === 401) {
                     const body = await res.json().catch(() => ({}));
-                    const loginUrl = body?.login_url ?? "http://127.0.0.1:3000/";
+                    const loginUrl = body?.login_url ?? `${API_BASE}/`;
                     window.location.href = loginUrl;
                     return;
                 }
@@ -90,14 +91,14 @@ export default function WallPage() {
         // Don't set selectedAlbum yet - wait until tracks are fetched
 
         try {
-            const res = await fetch(`http://127.0.0.1:3000/album-tracks?album_id=${album.album_id}`, {
+            const res = await fetch(`${API_BASE}/album-tracks?album_id=${album.album_id}`, {
                 cache: "no-store",
                 credentials: "include",
             });
 
             if (res.status === 401) {
                 const body = await res.json().catch(() => ({}));
-                const loginUrl = body?.login_url ?? "http://127.0.0.1:3000/";
+                const loginUrl = body?.login_url ?? `${API_BASE}/`;
                 window.location.href = loginUrl;
                 return;
             }

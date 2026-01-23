@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { API_BASE } from '../lib/api';
 
 type User = {
     id: string;
@@ -15,8 +16,6 @@ type AuthContextType = {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const API_BASE = 'http://127.0.0.1:3000';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);

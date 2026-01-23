@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { API_BASE } from '../lib/api';
 
 export default function Navbar() {
     const pathname = usePathname();
@@ -11,7 +12,7 @@ export default function Navbar() {
     useEffect(() => {
         async function checkAuth() {
             try {
-                const res = await fetch("http://127.0.0.1:3000/tracking", {
+                const res = await fetch(`${API_BASE}/tracking`, {
                     cache: "no-store",
                     credentials: "include",
                 });

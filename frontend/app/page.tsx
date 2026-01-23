@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { API_BASE } from './lib/api';
 
 export default function HomePage() {
     const [isChecking, setIsChecking] = useState(true);
@@ -10,7 +11,7 @@ export default function HomePage() {
     useEffect(() => {
         async function checkAuth() {
             try {
-                const res = await fetch("http://127.0.0.1:3000/tracking", {
+                const res = await fetch(`${API_BASE}/tracking`, {
                     cache: "no-store",
                     credentials: "include",
                 });
@@ -58,7 +59,7 @@ export default function HomePage() {
                     Track your album listening progress and discover your music journey
                 </p>
                 <a
-                    href="http://127.0.0.1:3000/"
+                    href={`${API_BASE}/`}
                     className="inline-block bg-white text-[#191414] font-semibold px-8 py-4 rounded-full hover:bg-white/90 transition-all duration-200 text-lg shadow-lg"
                 >
                     Track now
