@@ -1,16 +1,16 @@
 import os
 import time
 from datetime import datetime, timezone
-
 import requests
 from celery import Celery, group
 from celery.schedules import crontab
 from env import load_environment
-from supabase import Client, create_client
+from supabase import create_client, Client
 
 load_environment()
-
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_API_KEY"))
+celery = Celery("last_fm_album_tracking", broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+celery.conf.timezone = 'UTC'
 
 last_fm_api_key = os.getenv("LAST_FM_API_KEY")
 if not last_fm_api_key:
@@ -18,18 +18,17 @@ if not last_fm_api_key:
 
 LAST_FM_API_BASE = "https://ws.audioscrobbler.com/2.0/"
 
-celery = Celery("last_fm_album_tracking", broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"))
-celery.conf.timezone = "UTC"
-
+# Celery beat schedule - runs every hour at the 45th minute
 celery.conf.beat_schedule = {
-    "last-fm-track-listening-every-hour": {
-        "task": "last_fm_album_tracking.track_all_users_recently_listened",
-        "schedule": crontab(minute=45),
+    'track-listening-every-hour': {
+        'task': 'last_fm_album_tracking.track_all_users_recently_listened',
+        'schedule': crontab(minute=45)
     },
 }
 
 
 def _lastfm_get(params):
+    """Helper function to make Last.fm API requests"""
     params = {**params, "api_key": last_fm_api_key, "format": "json"}
     response = requests.get(LAST_FM_API_BASE, params=params, timeout=10)
     response.raise_for_status()
@@ -39,199 +38,380 @@ def _lastfm_get(params):
     return data
 
 
+def _get_image_url(images, preferred_sizes):
+    """Extract image URL from Last.fm image array"""
+    for size in preferred_sizes:
+        for image in images:
+            if image.get("size") == size and image.get("#text"):
+                return image.get("#text")
+    return None
+
+
 def _album_key(artist_name, album_name):
+    """Generate consistent album key from artist and album name"""
     if not artist_name or not album_name:
         return None
     return f"{artist_name}::{album_name}".strip().lower()
 
 
-def _image_map(images):
-    mapped = {}
-    for image in images:
-        size = image.get("size")
-        url = image.get("#text")
-        if size and url:
-            mapped[size] = url
-    return mapped
+def _rpc_data(resp, label):
+    """Extract data from a Supabase RPC response or raise a helpful error."""
+    error = getattr(resp, "error", None)
+    if error:
+        raise RuntimeError(f"Supabase RPC {label} failed: {error}")
+    data = getattr(resp, "data", None)
+    return data or []
+
+
+def _upsert_artist(artist_name):
+    """Fetch artist info from Last.fm and upsert to database"""
+    if not artist_name:
+        return
+    
+    try:
+        artist_info = _lastfm_get({
+            "method": "artist.getinfo",
+            "artist": artist_name
+        })
+        
+        artist_data = artist_info.get("artist", {})
+        artist_images = artist_data.get("image", [])
+        
+        supabase.table('last_fm_artists').upsert({
+            'artist_name': artist_name,
+            'artist_mbid': artist_data.get("mbid") or None,
+            'artist_url': artist_data.get("url"),
+            'listeners': artist_data.get("stats", {}).get("listeners"),
+            'playcount': artist_data.get("stats", {}).get("playcount"),
+            'image_small': _get_image_url(artist_images, ["small"]),
+            'image_medium': _get_image_url(artist_images, ["medium"]),
+            'image_large': _get_image_url(artist_images, ["large"]),
+            'image_extralarge': _get_image_url(artist_images, ["extralarge"])
+        }).execute()
+    except (requests.RequestException, ValueError) as e:
+        print(f"Error fetching artist info for {artist_name}: {e}")
+        # Create minimal artist entry if API call fails
+        supabase.table('last_fm_artists').upsert({
+            'artist_name': artist_name
+        }).execute()
 
 
 @celery.task
 def track_all_users_recently_listened():
-    users_response = supabase.table("last_fm_users").select("lastfm_username").execute()
+    """Main task to track listening for all users"""
+    users_response = supabase.table('last_fm_users').select('lastfm_username').execute()
     job = group(
-        get_recently_listened.s(user["lastfm_username"])
+        get_recently_listened.s(user['lastfm_username'])
         for user in users_response.data
     )
     job.apply_async()
 
 
 @celery.task
-def get_recently_listened(lastfm_username):
+def get_recently_listened(username):
+    """Get tracks listened to in the last hour for a specific user"""
     one_hour_ago = int(time.time() - 3600)
-    payload = _lastfm_get({
-        "method": "user.getrecenttracks",
-        "user": lastfm_username,
-        "from": one_hour_ago,
-        "to": int(time.time()),
-        "limit": 50,
-    })
+    
+    try:
+        payload = _lastfm_get({
+            "method": "user.getrecenttracks",
+            "user": username,
+            "from": one_hour_ago,
+            "limit": 50,
+        })
+    except (requests.RequestException, ValueError) as e:
+        print(f"Error fetching recent tracks for {username}: {e}")
+        return
 
     items = payload.get("recenttracks", {}).get("track", [])
     if isinstance(items, dict):
         items = [items]
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    supabase.table("last_fm_users").update({
-        "last_synced_at": now_iso,
-    }).eq("lastfm_username", lastfm_username).execute()
-
     for item in items:
-        artist_name = item.get("artist", {}).get("#text", "")
-        artist_mbid = item.get("artist", {}).get("mbid")
-        track_name = item.get("name", "")
-        track_url = item.get("url")
-        album_name = item.get("album", {}).get("#text", "")
-        now_playing = item.get("@attr", {}).get("nowplaying") == "true"
-        date_uts = item.get("date", {}).get("uts")
-
-        if not date_uts:
-            # Skip currently playing items without a timestamp to avoid duplicates.
+        # Skip currently playing tracks (they don't have a timestamp yet)
+        if item.get("@attr", {}).get("nowplaying") == "true":
             continue
 
-        played_at = datetime.fromtimestamp(int(date_uts), tz=timezone.utc).isoformat()
+        # Parse artist - it can be a string or an object with #text
+        artist_obj = item.get("artist", {})
+        if isinstance(artist_obj, dict):
+            artist_name = artist_obj.get("#text", "")
+        else:
+            artist_name = str(artist_obj)
+        
+        # Parse album - it can be a string or an object with #text
+        album_obj = item.get("album", {})
+        if isinstance(album_obj, dict):
+            album_name = album_obj.get("#text", "")
+        else:
+            album_name = str(album_obj)
+            
+        track_name = item.get("name", "")
+        track_url = item.get("url", "")
+        
+        if not artist_name or not album_name or not track_name:
+            continue
+
         album_key = _album_key(artist_name, album_name)
+        if not album_key:
+            continue
 
-        if artist_name:
-            artist_payload = {"artist_name": artist_name}
-            if artist_mbid:
-                artist_payload["artist_mbid"] = artist_mbid
-            supabase.table("last_fm_artists").upsert(artist_payload).execute()
+        # Parse played_at timestamp
+        date_dict = item.get("date", {})
+        played_at = None
+        if "uts" in date_dict:
+            try:
+                played_at = datetime.fromtimestamp(int(date_dict["uts"]), tz=timezone.utc)
+            except (TypeError, ValueError):
+                played_at = datetime.now(timezone.utc)
+        else:
+            played_at = datetime.now(timezone.utc)
 
-        if album_key:
-            album_exists = supabase.table("last_fm_albums") \
-                .select("album_key") \
-                .eq("album_key", album_key) \
-                .limit(1) \
-                .execute()
+        images = item.get("image", [])
 
-            if not album_exists.data:
-                try:
-                    album_payload = _lastfm_get({
-                        "method": "album.getInfo",
-                        "artist": artist_name,
-                        "album": album_name,
-                        "autocorrect": 1,
-                    })
-                    album_info = album_payload.get("album", {})
-                except (requests.RequestException, ValueError):
-                    album_info = {}
+        # Ensure artist exists with full info
+        _upsert_artist(artist_name)
 
-                images = _image_map(album_info.get("image", []))
-                tracks = album_info.get("tracks", {}).get("track", [])
+        # Check if album exists
+        album_exists = supabase.table("last_fm_albums")\
+            .select('album_key')\
+            .eq('album_key', album_key)\
+            .limit(1)\
+            .execute()
+        
+        if not album_exists.data:
+            # Fetch full album info from Last.fm
+            try:
+                album_info = _lastfm_get({
+                    "method": "album.getinfo",
+                    "artist": artist_name,
+                    "album": album_name
+                })
+                
+                album_data = album_info.get("album", {})
+                album_images = album_data.get("image", [])
+                
+                # Get tracks list - can be dict or list
+                tracks_data = album_data.get("tracks", {})
+                tracks = tracks_data.get("track", [])
                 if isinstance(tracks, dict):
                     tracks = [tracks]
+                
+                # Insert album
+                supabase.table('last_fm_albums').upsert({
+                    'album_key': album_key,
+                    'album_name': album_name,
+                    'artist_name': artist_name,
+                    'album_url': album_data.get("url"),
+                    'listeners': album_data.get("listeners"),
+                    'playcount': album_data.get("playcount"),
+                    'image_small': _get_image_url(album_images, ["small"]),
+                    'image_medium': _get_image_url(album_images, ["medium"]),
+                    'image_large': _get_image_url(album_images, ["large"]),
+                    'total_tracks': len(tracks)
+                }).execute()
 
-                album_insert = {
-                    "album_key": album_key,
-                    "album_name": album_info.get("name") or album_name,
-                    "artist_name": album_info.get("artist") or artist_name,
-                    "album_url": album_info.get("url"),
-                    "release_date": (album_info.get("releasedate") or "").strip() or None,
-                    "listeners": album_info.get("listeners"),
-                    "playcount": album_info.get("playcount"),
-                    "image_small": images.get("small"),
-                    "image_medium": images.get("medium"),
-                    "image_large": images.get("large") or images.get("extralarge"),
-                    "total_tracks": len(tracks) if tracks else None,
-                }
-
-                supabase.table("last_fm_albums").upsert(album_insert).execute()
-
-                for track in tracks:
-                    track_rank = track.get("@attr", {}).get("rank")
-                    if not track_rank:
-                        continue
-                    try:
-                        track_number = int(track_rank)
-                    except (TypeError, ValueError):
-                        continue
-
-                    track_name_value = track.get("name")
-                    if not track_name_value:
-                        continue
-
-                    duration_value = track.get("duration")
-                    duration_sec = None
-                    if duration_value and str(duration_value).isdigit():
-                        duration_sec = int(duration_value)
-
+                # Insert album tracks
+                for idx, track in enumerate(tracks, start=1):
+                    track_artist = track.get("artist", {})
+                    # Artist in track can be a string or an object with name field
+                    if isinstance(track_artist, dict):
+                        track_artist_name = track_artist.get("name", artist_name)
+                    else:
+                        track_artist_name = artist_name
+                    
+                    # Get duration - Last.fm returns it in seconds
+                    duration = track.get("duration")
+                    if duration:
+                        try:
+                            duration = int(duration)
+                        except (ValueError, TypeError):
+                            duration = None
+                    
                     supabase.table("last_fm_album_tracks").upsert({
                         "album_key": album_key,
-                        "track_number": track_number,
-                        "track_name": track_name_value,
+                        "track_number": idx,
+                        "track_name": track.get("name", ""),
                         "track_url": track.get("url"),
-                        "duration_sec": duration_sec,
+                        "duration_sec": duration
                     }).execute()
 
-                    track_artist = track.get("artist", {})
-                    track_artist_name = track_artist.get("name") or track_artist.get("#text") or artist_name
-                    if track_artist_name:
-                        supabase.table("last_fm_artists").upsert({
-                            "artist_name": track_artist_name,
-                        }).execute()
-                        supabase.table("last_fm_track_artists").upsert({
-                            "album_key": album_key,
-                            "track_number": track_number,
-                            "artist_name": track_artist_name,
-                            "artist_order": 1,
-                        }).execute()
+                    # Ensure track artist exists with full info
+                    _upsert_artist(track_artist_name)
 
-        listened_payload = {
-            "lastfm_username": lastfm_username,
-            "played_at": played_at,
-            "track_name": track_name,
-            "artist_name": artist_name,
-            "album_name": album_name or None,
-            "track_url": track_url,
-            "now_playing": now_playing,
-        }
-        if album_key:
-            listened_payload["album_key"] = album_key
+                    # Insert track artist relationship
+                    supabase.table('last_fm_track_artists').upsert({
+                        'album_key': album_key,
+                        'track_number': idx,
+                        'artist_name': track_artist_name,
+                        'artist_order': 1
+                    }).execute()
 
-        supabase.table("last_fm_listened_tracks").upsert(listened_payload).execute()
+            except (requests.RequestException, ValueError) as e:
+                print(f"Error fetching album info for {album_name} by {artist_name}: {e}")
+                # Create minimal album entry even if API call fails
+                supabase.table('last_fm_albums').upsert({
+                    'album_key': album_key,
+                    'album_name': album_name,
+                    'artist_name': artist_name,
+                    'image_small': _get_image_url(images, ["small"]),
+                    'image_medium': _get_image_url(images, ["medium"]),
+                    'image_large': _get_image_url(images, ["large"])
+                }).execute()
+
+        # Record listened track
+        supabase.table('last_fm_listened_tracks').upsert({
+            'lastfm_username': username,
+            'played_at': played_at.isoformat(),
+            'track_name': track_name,
+            'artist_name': artist_name,
+            'album_name': album_name,
+            'track_url': track_url,
+            'album_key': album_key,
+            'now_playing': False
+        }).execute()
 
 
-def get_albums_completion(lastfm_username):
-    resp = supabase.rpc("get_last_fm_album_completion", {"p_lastfm_username": lastfm_username}).execute()
+def get_albums_completion(username):
+    """Get album completion statistics for a user"""
+    resp = supabase.rpc('get_last_fm_album_completion', {'p_lastfm_username': username}).execute()
+    data = _rpc_data(resp, "get_last_fm_album_completion")
     output = []
-    for row in resp.data:
+    for row in data:
+        listened = row.get('listened') or 0
+        total = row.get('total') or 0
         output.append({
-            "album_id": row.get("album_key"),
-            "album_name": row.get("album_name"),
-            "artist": row.get("primary_artist"),
-            "listened": row.get("listened"),
-            "total": row.get("total"),
-            "percentage": (row.get("listened") or 0) / (row.get("total") or 1),
-            "album_image": row.get("album_image"),
+            'album_key': row.get('album_key'),
+            'album_name': row.get('album_name'),
+            'artist': row.get('primary_artist'),
+            'listened': listened,
+            'total': total,
+            'percentage': listened / total if total else 0,
+            'album_image': row.get('album_image'),
         })
     return output
 
 
-def get_album_tracks(lastfm_username, album_key):
+def get_album_tracks(username: str, album_key: str):
+    """Get all tracks for an album with listened status for a user"""
     resp = supabase.rpc(
-        "get_last_fm_album_tracks",
-        {"p_lastfm_username": lastfm_username, "p_album_key": album_key}
+        'get_last_fm_album_tracks',
+        {'p_lastfm_username': username, 'p_album_key': album_key}
     ).execute()
+    data = _rpc_data(resp, "get_last_fm_album_tracks")
 
     output = []
-    for row in resp.data:
-        track_number = row.get("track_number")
-        track_id = f"{album_key}:{track_number}" if track_number is not None else None
+    for row in data:
         output.append({
-            "track_id": track_id,
-            "track_name": row.get("track_name"),
-            "track_number": track_number,
-            "is_listened": row.get("is_listened"),
+            'track_number': row.get('track_number'),
+            'track_name': row.get('track_name'),
+            'is_listened': row.get('is_listened'),
         })
 
     return output
+
+
+def backfill_album_info():
+    """
+    One-time function to backfill album information for albums missing data.
+    """
+    # Get all albums missing total_tracks or image data
+    albums = supabase.table('last_fm_albums')\
+        .select('album_key, album_name, artist_name')\
+        .or_('total_tracks.is.null,image_large.is.null')\
+        .execute()
+    
+    if not albums.data:
+        print("No albums need backfilling.")
+        return
+    
+    print(f"Found {len(albums.data)} albums missing data.")
+    
+    # Update each album
+    for album in albums.data:
+        album_key = album['album_key']
+        artist_name = album['artist_name']
+        album_name = album['album_name']
+        
+        try:
+            album_info = _lastfm_get({
+                "method": "album.getinfo",
+                "artist": artist_name,
+                "album": album_name
+            })
+            
+            album_data = album_info.get("album", {})
+            album_images = album_data.get("image", [])
+            
+            # Get tracks count
+            tracks_data = album_data.get("tracks", {})
+            tracks = tracks_data.get("track", [])
+            if isinstance(tracks, dict):
+                tracks = [tracks]
+            
+            supabase.table('last_fm_albums').update({
+                'album_url': album_data.get("url"),
+                'listeners': album_data.get("listeners"),
+                'playcount': album_data.get("playcount"),
+                'image_small': _get_image_url(album_images, ["small"]),
+                'image_medium': _get_image_url(album_images, ["medium"]),
+                'image_large': _get_image_url(album_images, ["large"]),
+                'total_tracks': len(tracks)
+            }).eq('album_key', album_key).execute()
+            
+            print(f"Updated {album_name} by {artist_name}")
+            time.sleep(0.25)  # Rate limiting
+            
+        except Exception as e:
+            print(f"Error updating {album_name} by {artist_name}: {e}")
+    
+    print("Backfill complete!")
+
+
+def backfill_artist_info():
+    """
+    One-time function to backfill artist information for artists missing data.
+    """
+    # Get all artists missing metadata (only have artist_name)
+    artists = supabase.table('last_fm_artists')\
+        .select('artist_name')\
+        .or_('artist_url.is.null,listeners.is.null,image_large.is.null')\
+        .execute()
+    
+    if not artists.data:
+        print("No artists need backfilling.")
+        return
+    
+    print(f"Found {len(artists.data)} artists missing data.")
+    
+    # Update each artist
+    for artist in artists.data:
+        artist_name = artist['artist_name']
+        
+        try:
+            artist_info = _lastfm_get({
+                "method": "artist.getinfo",
+                "artist": artist_name
+            })
+            
+            artist_data = artist_info.get("artist", {})
+            artist_images = artist_data.get("image", [])
+            
+            supabase.table('last_fm_artists').update({
+                'artist_mbid': artist_data.get("mbid") or None,
+                'artist_url': artist_data.get("url"),
+                'listeners': artist_data.get("stats", {}).get("listeners"),
+                'playcount': artist_data.get("stats", {}).get("playcount"),
+                'image_small': _get_image_url(artist_images, ["small"]),
+                'image_medium': _get_image_url(artist_images, ["medium"]),
+                'image_large': _get_image_url(artist_images, ["large"]),
+                'image_extralarge': _get_image_url(artist_images, ["extralarge"])
+            }).eq('artist_name', artist_name).execute()
+            
+            print(f"Updated {artist_name}")
+            time.sleep(0.25)  # Rate limiting
+            
+        except Exception as e:
+            print(f"Error updating {artist_name}: {e}")
+    
+    print("Artist backfill complete!")

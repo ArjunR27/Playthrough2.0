@@ -124,10 +124,15 @@ def _handle_username_login(username):
 def _get_session_username():
     username = session.get("lastfm_username")
     if not username:
-        return None, (jsonify({
-            "error": "unauthorized",
-            "login_url": url_for("login", _external=True),
-        }), 401)
+        username = request.args.get("username", "").strip()
+        if username:
+            # Allow username override for direct link access (e.g. local dev tools).
+            session["lastfm_username"] = username
+        else:
+            return None, (jsonify({
+                "error": "unauthorized",
+                "login_url": url_for("login", _external=True),
+            }), 401)
     return username, None
 
 
@@ -285,7 +290,11 @@ def album_tracker():
     if error_response:
         return error_response
 
-    albums = get_albums_completion(username)
+    try:
+        albums = get_albums_completion(username)
+    except Exception:
+        app.logger.exception("Failed to fetch album completion for %s", username)
+        return jsonify({"error": "tracking_unavailable"}), 502
     return jsonify(albums)
 
 
@@ -301,7 +310,11 @@ def album_tracks():
             "error": "album_key is required",
         }), 400
 
-    tracks = get_album_tracks(username, album_key)
+    try:
+        tracks = get_album_tracks(username, album_key)
+    except Exception:
+        app.logger.exception("Failed to fetch album tracks for %s", album_key)
+        return jsonify({"error": "tracks_unavailable"}), 502
     return jsonify(tracks)
 
 
