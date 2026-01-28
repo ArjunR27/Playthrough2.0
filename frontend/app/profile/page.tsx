@@ -1,9 +1,11 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
 import { API_BASE } from '../lib/api';
+import { authedFetcher, type FetcherError } from '../lib/swr';
 
 type ProfileData = {
     id: string;
@@ -17,41 +19,27 @@ type ProfileData = {
 }
 
 export default function ProfilePage() {
-    const [profile, setProfile] = useState<ProfileData | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
-    useEffect(() => {
-        async function fetchProfile() {
-            try {
-                const res = await fetch(`${API_BASE}/profile`, {
-                    cache: "no-store",
-                    credentials: "include",
-                });
-
-                if (res.status === 401) {
-                    const body = await res.json().catch(() => ({}));
-                    const loginUrl = body?.login_url ?? `${API_BASE}/`;
-                    window.location.href = loginUrl;
-                    return;
-                }
-
-                if (!res.ok) {
-                    throw new Error('Failed to fetch profile data');
-                }
-
-                const data = await res.json();
-                setProfile(data);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'An error occurred');
-            } finally {
-                setLoading(false);
-            }
+    const { data, error, isLoading } = useSWR<ProfileData, FetcherError>(
+        `${API_BASE}/profile`,
+        authedFetcher,
+        {
+            refreshInterval: 0,
+            revalidateOnFocus: false,
+            revalidateIfStale: false,
         }
+    );
 
-        fetchProfile();
-    }, []);
+    useEffect(() => {
+        if (error?.status === 401) {
+            const loginUrl =
+                (error.info as { login_url?: string } | undefined)?.login_url ?? `${API_BASE}/`;
+            window.location.href = loginUrl;
+        }
+    }, [error]);
+
+    const profile = data ?? null;
 
     const handleSignOut = async () => {
         try {
@@ -78,7 +66,7 @@ export default function ProfilePage() {
         }
     };
 
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
                 <div className="text-white text-xl">Loading...</div>
@@ -86,10 +74,10 @@ export default function ProfilePage() {
         );
     }
 
-    if (error) {
+    if (error && error.status !== 401) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
-                <div className="text-red-500">Error: {error}</div>
+                <div className="text-red-500">Error: {error.message || 'Failed to load data'}</div>
             </div>
         );
     }

@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import useSWR from 'swr';
 import { API_BASE } from '../lib/api';
+import { authedFetcher, type FetcherError } from '../lib/swr';
 
 type Album = {
     album_id: string;
@@ -43,46 +45,34 @@ function AlbumCover({ url }: URLProp): React.ReactElement {
 
 
 export default function WallPage() {
-    const [albums, setAlbums] = useState<Album[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
     const [tracks, setTracks] = useState<Track[]>([]);
     const [isTracksLoading, setIsTracksLoading] = useState(false);
     const [tracksError, setTracksError] = useState<string | null>(null);
 
-    useEffect(() => {
-        async function fetchTracking() {
-            try {
-                const res = await fetch(`${API_BASE}/tracking`, {
-                    cache: "no-store",
-                    credentials: "include",
-                });
-
-                if (res.status === 401) {
-                    const body = await res.json().catch(() => ({}));
-                    const loginUrl = body?.login_url ?? `${API_BASE}/`;
-                    window.location.href = loginUrl;
-                    return;
-                }
-
-                if (!res.ok) {
-                    throw new Error('Failed to fetch tracking data');
-                }
-
-                const data = await res.json();
-                // Sort by percentage (descending - highest completion first)
-                const sorted = data.sort((a: Album, b: Album) => b.percentage - a.percentage);
-                setAlbums(sorted);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'An error occurred');
-            } finally {
-                setLoading(false);
-            }
+    const { data, error, isLoading } = useSWR<Album[], FetcherError>(
+        `${API_BASE}/tracking`,
+        authedFetcher,
+        {
+            refreshInterval: 1800000,
+            revalidateOnFocus: true,
         }
+    );
 
-        fetchTracking();
-    }, []);
+    useEffect(() => {
+        if (error?.status === 401) {
+            const loginUrl =
+                (error.info as { login_url?: string } | undefined)?.login_url ?? `${API_BASE}/`;
+            window.location.href = loginUrl;
+        }
+    }, [error]);
+
+    const albums = useMemo(() => {
+        if (!data) {
+            return [];
+        }
+        return [...data].sort((a, b) => b.percentage - a.percentage);
+    }, [data]);
 
     const handleAlbumClick = async (album: Album) => {
         setIsTracksLoading(true);
@@ -127,7 +117,7 @@ export default function WallPage() {
         setIsTracksLoading(false);
     };
 
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
                 <div className="text-white text-xl">Loading...</div>
@@ -135,10 +125,10 @@ export default function WallPage() {
         );
     }
 
-    if (error) {
+    if (error && error.status !== 401) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
-                <div className="text-red-500">Error: {error}</div>
+                <div className="text-red-500">Error: {error.message || 'Failed to load data'}</div>
             </div>
         );
     }

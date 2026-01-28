@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import Image from 'next/image';
+import useSWR from 'swr';
 import { API_BASE } from '../lib/api';
+import { authedFetcher, type FetcherError } from '../lib/swr';
 
 type Recent = {
     track_name: string;
@@ -43,44 +45,27 @@ function formatPlayedAt(playedAt: string): string {
 }
 
 export default function RecentlyListenedPage() {
-    const [recents, setRecents] = useState<Recent[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null); 
+    const { data, error, isLoading } = useSWR<Recent[], FetcherError>(
+        `${API_BASE}/recents`,
+        authedFetcher,
+        {
+            refreshInterval: 120000,
+            keepPreviousData: true,
+            revalidateOnFocus: true,
+        }
+    );
 
     useEffect(() => {
-        async function fetchRecents() {
-            try {
-                const res = await fetch(`${API_BASE}/recents`, {
-                    cache: "no-store",
-                    credentials: "include", 
-                }); 
-
-                if (res.status === 401) {
-                    const body = await res.json().catch(() => ({}));
-                    const loginUrl = body?.login_url ?? `${API_BASE}/`;
-                    // changes the current url to the login url because the user is not correctly authenticated with spotify
-                    window.location.href = loginUrl;
-                    return
-                }
-
-                if (!res.ok) {
-                    throw new Error('Failed to fetch recents')
-                }
-
-                const data = await res.json();
-                setRecents(data)
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'An error occured'); 
-            } finally {
-                setLoading(false); 
-            }
+        if (error?.status === 401) {
+            const loginUrl =
+                (error.info as { login_url?: string } | undefined)?.login_url ?? `${API_BASE}/`;
+            window.location.href = loginUrl;
         }
+    }, [error]);
 
-        fetchRecents(); 
+    const recents = data ?? [];
 
-    }, [])
-
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
                 <div className="text-white text-xl">Loading...</div>
@@ -88,10 +73,10 @@ export default function RecentlyListenedPage() {
         );
     }
 
-    if (error) {
+    if (error && error.status !== 401) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
-                <div className="text-red-500">Error: {error}</div>
+                <div className="text-red-500">Error: {error.message || 'Failed to load data'}</div>
             </div>
         );
     }
