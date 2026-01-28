@@ -8,3 +8,4 @@ cache
 celerybeat-schedule.db
 dump.rdb
 logs
+cookies.txt

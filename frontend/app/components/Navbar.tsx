@@ -58,10 +58,10 @@ export default function Navbar() {
         <nav className="bg-gradient-to-br from-[#191414] to-[#1DB954] border-b border-white/20">
             <div className="max-w-7xl mx-auto px-8 py-4">
                 <div className="flex items-center justify-between">
-                    <Link href="/dashboard" className="text-2xl font-bold text-white">
+                    <Link href="/dashboard" className="font-display text-2xl font-bold text-white">
                         Playthrough
                     </Link>
-                    <div className="flex gap-6">
+                    <div className="flex gap-6 font-display">
                         {navLinks.map((link) => (
                             <Link
                                 key={link.href}

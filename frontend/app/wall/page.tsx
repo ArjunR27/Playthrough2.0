@@ -146,7 +146,7 @@ export default function WallPage() {
     return (
         <div className="min-h-screen p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
             <div className="max-w-7xl mx-auto">
-                <h1 className="text-4xl font-bold text-white mb-8 text-center">
+                <h1 className="font-display text-4xl font-bold text-white mb-8 text-center">
                     Album Completion Wall
                 </h1>
                 
@@ -175,7 +175,7 @@ export default function WallPage() {
                                         )}
                                     </div>
                                     
-                                    <h2 className="text-xl font-bold text-white mb-2 text-center">
+                                    <h2 className="font-display text-xl font-bold text-white mb-2 text-center">
                                         {album.album_name}
                                     </h2>
                                     
@@ -242,7 +242,7 @@ export default function WallPage() {
                                 
                                 {/* Album Info */}
                                 <div className="flex-1 min-w-0">
-                                    <h2 className="text-2xl font-bold text-white mb-2">
+                                    <h2 className="font-display text-2xl font-bold text-white mb-2">
                                         {selectedAlbum.album_name}
                                     </h2>
                                     <p className="text-white/70 mb-3">

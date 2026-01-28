@@ -99,7 +99,7 @@ export default function RecentlyListenedPage() {
     return (
         <div className="min-h-screen p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
             <div className="max-w-7xl mx-auto">
-                <h1 className="text-4xl font-bold text-white mb-8 text-center">
+                <h1 className="font-display text-4xl font-bold text-white mb-8 text-center">
                     Recently Listened Songs
                 </h1>
 
@@ -126,7 +126,7 @@ export default function RecentlyListenedPage() {
                                         )}
                                     </div>
 
-                                    <h2 className="text-xl font-bold text-white mb-2 text-center">
+                                    <h2 className="font-display text-xl font-bold text-white mb-2 text-center">
                                         {song.track_name}
                                     </h2>
 
