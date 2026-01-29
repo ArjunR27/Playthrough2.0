@@ -193,6 +193,18 @@ export default function DashboardPage() {
     }, []);
 
     const wallIds = useMemo(() => new Set(wallItems.map((item) => item.album_id)), [wallItems]);
+    const wallContentHeight = useMemo(() => {
+        if (wallItems.length === 0) {
+            return null;
+        }
+        let maxY = 0;
+        for (const item of wallItems) {
+            if (item.y > maxY) {
+                maxY = item.y;
+            }
+        }
+        return Math.ceil(maxY + 240);
+    }, [wallItems]);
 
     const handleAddToWall = (album: Album) => {
         setWallItems((prev) => {
@@ -287,94 +299,99 @@ export default function DashboardPage() {
                 </div>
 
                 <div
-                    ref={wallRef}
-                    className="relative w-full h-[70vh] sm:h-[80vh] min-h-[360px] sm:min-h-[520px] rounded-[24px] sm:rounded-[36px] border shadow-[0_30px_80px_rgba(0,0,0,0.55)] overflow-hidden select-none"
-                    style={{
-                        borderColor: "var(--wall-wood-edge)",
-                        backgroundImage:
-                            "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.45)), repeating-linear-gradient(90deg, var(--wall-wood-1) 0px, var(--wall-wood-1) 32px, var(--wall-wood-2) 32px, var(--wall-wood-2) 64px)",
-                    }}
+                    className="relative w-full h-[70vh] sm:h-[80vh] min-h-[360px] sm:min-h-[520px] rounded-[24px] sm:rounded-[36px] border shadow-[0_30px_80px_rgba(0,0,0,0.55)] overflow-y-auto overflow-x-hidden select-none"
+                    style={{ borderColor: "var(--wall-wood-edge)" }}
                 >
                     <div
-                        className="absolute inset-0 opacity-60 pointer-events-none"
+                        ref={wallRef}
+                        className="relative w-full min-h-full"
                         style={{
+                            height: wallContentHeight ?? undefined,
                             backgroundImage:
-                                "radial-gradient(circle at 15% 25%, rgba(255,255,255,0.08), transparent 35%), radial-gradient(circle at 80% 70%, rgba(0,0,0,0.35), transparent 45%)",
+                                "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.45)), repeating-linear-gradient(90deg, var(--wall-wood-1) 0px, var(--wall-wood-1) 32px, var(--wall-wood-2) 32px, var(--wall-wood-2) 64px)",
                         }}
-                    />
+                    >
+                        <div
+                            className="absolute inset-0 opacity-60 pointer-events-none"
+                            style={{
+                                backgroundImage:
+                                    "radial-gradient(circle at 15% 25%, rgba(255,255,255,0.08), transparent 35%), radial-gradient(circle at 80% 70%, rgba(0,0,0,0.35), transparent 45%)",
+                            }}
+                        />
 
-                    {wallItems.length === 0 ? (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-white/70 text-sm bg-black/30 rounded-full px-6 py-3">
-                                Add completed albums to start building your wall.
+                        {wallItems.length === 0 ? (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="text-white/70 text-sm bg-black/30 rounded-full px-6 py-3">
+                                    Add completed albums to start building your wall.
+                                </div>
                             </div>
-                        </div>
-                    ) : (
-                        wallItems.map((item) => {
-                            const album = albumsById.get(item.album_id);
-                            if (!album) {
-                                return null;
-                            }
-                            const isDragging = draggingId === item.album_id;
-                            return (
-                                <div
-                                    key={item.album_id}
-                                    className={`absolute group cursor-grab active:cursor-grabbing ${
-                                        isDragging ? "z-30" : "z-10"
-                                    }`}
-                                    style={{
-                                        left: item.x,
-                                        top: item.y,
-                                        touchAction: "none",
-                                    }}
-                                    onPointerDown={handlePointerDown(item.album_id)}
-                                >
-                                    <div className="flex flex-col items-center">
-                                        <div className="relative w-[140px] h-[140px] sm:w-[150px] sm:h-[150px] md:w-[175px] md:h-[175px]">
-                                            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#111] via-[#1a1a1a] to-[#050505] shadow-[0_10px_25px_rgba(0,0,0,0.55)]" />
-                                            <div className="absolute inset-2 rounded-full border border-white/10" />
-                                            <div className="absolute inset-5 rounded-full border border-white/5" />
-                                            <div className="absolute inset-[26%] rounded-full overflow-hidden border border-white/10 bg-black/50">
-                                                {album.album_image ? (
-                                                    <Image
-                                                        src={album.album_image}
-                                                        alt={album.album_name}
-                                                        fill
-                                                        sizes="120px"
-                                                        className="object-cover"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-white/40 text-lg">note</div>
-                                                )}
+                        ) : (
+                            wallItems.map((item) => {
+                                const album = albumsById.get(item.album_id);
+                                if (!album) {
+                                    return null;
+                                }
+                                const isDragging = draggingId === item.album_id;
+                                return (
+                                    <div
+                                        key={item.album_id}
+                                        className={`absolute group cursor-grab active:cursor-grabbing ${
+                                            isDragging ? "z-30" : "z-10"
+                                        }`}
+                                        style={{
+                                            left: item.x,
+                                            top: item.y,
+                                            touchAction: "none",
+                                        }}
+                                        onPointerDown={handlePointerDown(item.album_id)}
+                                    >
+                                        <div className="flex flex-col items-center">
+                                            <div className="relative w-[140px] h-[140px] sm:w-[150px] sm:h-[150px] md:w-[175px] md:h-[175px]">
+                                                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#111] via-[#1a1a1a] to-[#050505] shadow-[0_10px_25px_rgba(0,0,0,0.55)]" />
+                                                <div className="absolute inset-2 rounded-full border border-white/10" />
+                                                <div className="absolute inset-5 rounded-full border border-white/5" />
+                                                <div className="absolute inset-[26%] rounded-full overflow-hidden border border-white/10 bg-black/50">
+                                                    {album.album_image ? (
+                                                        <Image
+                                                            src={album.album_image}
+                                                            alt={album.album_name}
+                                                            fill
+                                                            sizes="120px"
+                                                            className="object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-white/40 text-lg">note</div>
+                                                    )}
+                                                </div>
+                                                <div
+                                                    className="absolute left-1/2 top-1/2 w-2 h-2 rounded-full -translate-x-1/2 -translate-y-1/2 shadow-[0_0_6px_rgba(0,0,0,0.6)]"
+                                                    style={{ backgroundColor: "var(--wall-gold)" }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        handleRemoveFromWall(item.album_id);
+                                                    }}
+                                                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-black/60 border border-white/20 text-white/70 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    x
+                                                </button>
                                             </div>
-                                            <div
-                                                className="absolute left-1/2 top-1/2 w-2 h-2 rounded-full -translate-x-1/2 -translate-y-1/2 shadow-[0_0_6px_rgba(0,0,0,0.6)]"
-                                                style={{ backgroundColor: "var(--wall-gold)" }}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    handleRemoveFromWall(item.album_id);
-                                                }}
-                                                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-black/60 border border-white/20 text-white/70 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                x
-                                            </button>
-                                        </div>
-                                        <div className="mt-2 text-center">
-                                            <div className="text-[11px] uppercase tracking-[0.2em] text-white/80">
-                                                {album.album_name}
-                                            </div>
-                                            <div className="text-[10px] uppercase tracking-[0.25em]" style={{ color: "var(--wall-gold)" }}>
-                                                {album.artist}
+                                            <div className="mt-2 text-center">
+                                                <div className="text-[11px] uppercase tracking-[0.2em] text-white/80">
+                                                    {album.album_name}
+                                                </div>
+                                                <div className="text-[10px] uppercase tracking-[0.25em]" style={{ color: "var(--wall-gold)" }}>
+                                                    {album.artist}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })
-                    )}
+                                );
+                            })
+                        )}
+                    </div>
                 </div>
             </div>
 
