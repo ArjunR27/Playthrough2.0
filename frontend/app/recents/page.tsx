@@ -24,13 +24,13 @@ type URLProp = {
 
 function AlbumCover({ url }: URLProp): React.ReactElement {
     return (
-        <div>
+        <div className="w-full h-full">
             <Image
                 src={ url }
                 alt="Album Cover"
                 width={200}
                 height={200}
-                className="object-cover"
+                className="object-cover w-full h-full"
             />
         </div>
     )
@@ -82,9 +82,9 @@ export default function RecentlyListenedPage() {
     }
 
     return (
-        <div className="min-h-screen p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
+        <div className="min-h-screen p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
             <div className="max-w-7xl mx-auto">
-                <h1 className="font-display text-4xl font-bold text-white mb-8 text-center">
+                <h1 className="font-display text-3xl sm:text-4xl font-bold text-white mb-6 sm:mb-8 text-center">
                     Recents
                 </h1>
 
@@ -93,14 +93,14 @@ export default function RecentlyListenedPage() {
                         No recent listens yet. Play something to see it here.
                     </div>
                 ) : (
-                    <div className="grid grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                         {recents.map((song) => (
                             <div
                                 key={song.track_name + song.played_at}
-                                className="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-6 hover:bg-white/20 transition-all duration-200"
+                                className="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-4 sm:p-6 hover:bg-white/20 transition-all duration-200"
                             >
                                 <div className="flex flex-col items-center">
-                                    <div className="w-[200px] h-[200px] rounded-lg mb-4 overflow-hidden bg-gray-700 flex items-center justify-center">
+                                    <div className="w-[140px] h-[140px] sm:w-[180px] sm:h-[180px] lg:w-[200px] lg:h-[200px] rounded-lg mb-4 overflow-hidden bg-gray-700 flex items-center justify-center">
                                         {song.album_image ? (
                                             <AlbumCover url={song.album_image} />
                                         ) : (
@@ -111,19 +111,19 @@ export default function RecentlyListenedPage() {
                                         )}
                                     </div>
 
-                                    <h2 className="font-display text-xl font-bold text-white mb-2 text-center">
+                                    <h2 className="font-display text-lg sm:text-xl font-bold text-white mb-2 text-center">
                                         {song.track_name}
                                     </h2>
 
-                                    <p className="text-white/70 mb-2 text-center">
+                                    <p className="text-white/70 text-sm sm:text-base mb-2 text-center">
                                         {song.artists.join(', ')}
                                     </p>
 
-                                    <p className="text-white/60 mb-4 text-center">
+                                    <p className="text-white/60 text-sm sm:text-base mb-4 text-center">
                                         {song.album_name}
                                     </p>
 
-                                    <div className="text-white/70 text-sm text-center">
+                                    <div className="text-white/70 text-xs sm:text-sm text-center">
                                         Played {formatPlayedAt(song.played_at)}
                                     </div>
                                 </div>

@@ -31,13 +31,13 @@ type URLProp = {
 
 function AlbumCover({ url }: URLProp): React.ReactElement {
     return (
-        <div>
+        <div className="w-full h-full">
             <Image
                 src={ url }
                 alt="Album Cover"
                 width={200}
                 height={200}
-                className="object-cover"
+                className="object-cover w-full h-full"
             />
         </div>
     )
@@ -134,9 +134,9 @@ export default function WallPage() {
     }
 
     return (
-        <div className="min-h-screen p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
+        <div className="min-h-screen p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
             <div className="max-w-7xl mx-auto">
-                <h1 className="font-display text-4xl font-bold text-white mb-8 text-center">
+                <h1 className="font-display text-3xl sm:text-4xl font-bold text-white mb-6 sm:mb-8 text-center">
                     Completions
                 </h1>
                 
@@ -145,16 +145,16 @@ export default function WallPage() {
                         No albums tracked yet. Start listening to see your progress!
                     </div>
                 ) : (
-                    <div className="grid grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                         {albums.map((album) => (
                             <div
                                 key={album.album_id}
                                 onClick={() => handleAlbumClick(album)}
-                                className="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-6 hover:bg-white/20 transition-all duration-200 cursor-pointer"
+                                className="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-4 sm:p-6 hover:bg-white/20 transition-all duration-200 cursor-pointer"
                             >
                                 <div className="flex flex-col items-center">
                                     {/* Album Image - Fixed size for all albums */}
-                                    <div className="w-[200px] h-[200px] rounded-lg mb-4 overflow-hidden bg-gray-700 flex items-center justify-center">
+                                    <div className="w-[140px] h-[140px] sm:w-[180px] sm:h-[180px] lg:w-[200px] lg:h-[200px] rounded-lg mb-4 overflow-hidden bg-gray-700 flex items-center justify-center">
                                         {album.album_image ? (
                                             <AlbumCover url={album.album_image} />
                                         ) : (
@@ -165,21 +165,21 @@ export default function WallPage() {
                                         )}
                                     </div>
                                     
-                                    <h2 className="font-display text-xl font-bold text-white mb-2 text-center">
+                                    <h2 className="font-display text-lg sm:text-xl font-bold text-white mb-2 text-center">
                                         {album.album_name}
                                     </h2>
                                     
-                                    <p className="text-white/70 mb-4 text-center">
+                                    <p className="text-white/70 text-sm sm:text-base mb-4 text-center">
                                         {album.artist}
                                     </p>
                                     
                                     <div className="w-full">
-                                        <div className="flex justify-between text-sm text-white/80 mb-2">
+                                        <div className="flex justify-between text-xs sm:text-sm text-white/80 mb-2">
                                             <span>{album.listened} / {album.total} tracks</span>
                                             <span>{Math.round(album.percentage * 100)}%</span>
                                         </div>
                                         
-                                        <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
+                                        <div className="w-full bg-gray-700 rounded-full h-2.5 sm:h-3 overflow-hidden">
                                             <div
                                                 className="bg-[#1DB954] h-full rounded-full transition-all duration-300"
                                                 style={{ width: `${album.percentage * 100}%` }}
@@ -200,21 +200,21 @@ export default function WallPage() {
                     onClick={closeModal}
                 >
                     <div
-                        className="bg-gradient-to-br from-[#191414] to-[#1DB954] rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+                        className="bg-gradient-to-br from-[#191414] to-[#1DB954] rounded-2xl shadow-2xl max-w-[95vw] sm:max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Modal Header */}
-                        <div className="relative p-6 border-b border-white/20">
+                        <div className="relative p-4 sm:p-6 border-b border-white/20">
                             <button
                                 onClick={closeModal}
-                                className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10"
+                                className="absolute top-3 right-3 sm:top-4 sm:right-4 text-white/70 hover:text-white transition-colors text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10"
                             >
                                 ×
                             </button>
                             
-                            <div className="flex items-start gap-6 pr-10">
+                            <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 pr-8 sm:pr-10">
                                 {/* Album Image */}
-                                <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-700 flex-shrink-0">
+                                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-lg overflow-hidden bg-gray-700 flex-shrink-0">
                                     {selectedAlbum.album_image ? (
                                         <Image
                                             src={selectedAlbum.album_image}
@@ -232,13 +232,13 @@ export default function WallPage() {
                                 
                                 {/* Album Info */}
                                 <div className="flex-1 min-w-0">
-                                    <h2 className="font-display text-2xl font-bold text-white mb-2">
+                                    <h2 className="font-display text-xl sm:text-2xl font-bold text-white mb-2">
                                         {selectedAlbum.album_name}
                                     </h2>
-                                    <p className="text-white/70 mb-3">
+                                    <p className="text-white/70 text-sm sm:text-base mb-3">
                                         {selectedAlbum.artist}
                                     </p>
-                                    <div className="text-sm text-white/80">
+                                    <div className="text-xs sm:text-sm text-white/80">
                                         <span>{selectedAlbum.listened} / {selectedAlbum.total} tracks listened</span>
                                     </div>
                                 </div>
@@ -246,7 +246,7 @@ export default function WallPage() {
                         </div>
 
                         {/* Tracks List */}
-                        <div className="flex-1 overflow-y-auto p-6">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                             {tracksError ? (
                                 <div className="text-center text-red-400 py-8">
                                     Error: {tracksError}
@@ -260,17 +260,17 @@ export default function WallPage() {
                                     {tracks.map((track) => (
                                         <div
                                             key={track.track_id}
-                                            className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${
+                                            className={`flex items-center gap-3 sm:gap-4 p-3 rounded-lg transition-colors ${
                                                 track.is_listened
                                                     ? 'bg-[#1DB954]/20 hover:bg-[#1DB954]/30'
                                                     : 'bg-white/5 hover:bg-white/10'
                                             }`}
                                         >
-                                            <div className="w-8 text-center text-white/60 text-sm">
+                                            <div className="w-6 sm:w-8 text-center text-white/60 text-xs sm:text-sm">
                                                 {track.track_number}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className={`text-white ${
+                                                <div className={`text-sm sm:text-base text-white ${
                                                     track.is_listened ? 'font-medium' : 'text-white/80'
                                                 }`}>
                                                     {track.track_name}
