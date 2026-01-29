@@ -30,17 +30,15 @@ celery.conf.beat_schedule = {
 
 # this needs to be improved, with more users this will still update one at a time?
 # maybe have to thread each user or something along those lines
-@celery.task
 def track_all_users_recently_listened():
     users_response = supabase.table('users').select('user_id').execute()
     job = group(
-        get_recently_listened.delay(user['user_id'])
+        get_recently_listened(user['user_id'])
         for user in users_response.data
     )
     job.apply_async()
 
 # get 50 tracks within last 1 hour
-@celery.task
 def get_recently_listened(user_id):
     decrypted_token = get_valid_token(user_id)
     sp = spotipy.Spotify(auth=decrypted_token)
