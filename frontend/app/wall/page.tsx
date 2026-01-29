@@ -54,7 +54,7 @@ export default function WallPage() {
         `${API_BASE}/tracking`,
         authedFetcher,
         {
-            refreshInterval: 1800000,
+            refreshInterval: 120000,
             revalidateOnFocus: true,
         }
     );
