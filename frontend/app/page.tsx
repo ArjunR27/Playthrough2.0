@@ -23,8 +23,8 @@ export default function HomePage() {
                 }
 
                 if (res.ok) {
-                    // Logged in, redirect to dashboard
-                    router.push('/dashboard');
+                    // Logged in, redirect to wall
+                    router.push('/wall');
                     return;
                 }
 

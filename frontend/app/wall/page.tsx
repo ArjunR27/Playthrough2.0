@@ -1,10 +1,19 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react';
-import Image from 'next/image';
-import useSWR from 'swr';
-import { API_BASE } from '../lib/api';
-import { authedFetcher, type FetcherError } from '../lib/swr';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import Image from "next/image";
+import { Bebas_Neue, Sora } from "next/font/google";
+import { API_BASE } from "../lib/api";
+
+const displayFont = Bebas_Neue({
+    subsets: ["latin"],
+    weight: ["400"],
+});
+
+const bodyFont = Sora({
+    subsets: ["latin"],
+    weight: ["300", "400", "600"],
+});
 
 type Album = {
     album_id: string;
@@ -14,288 +23,447 @@ type Album = {
     total: number;
     percentage: number;
     album_image?: string | null;
-    album_image_height?: number | null;
-    album_image_width?: number | null;
+};
+
+type WallItem = {
+    album_id: string;
+    x: number;
+    y: number;
+};
+
+type DragState = {
+    album_id: string;
+    offsetX: number;
+    offsetY: number;
+    width: number;
+    height: number;
+};
+
+const STORAGE_KEY = "playthrough.dashboard.wall.v1";
+
+function clamp(value: number, min: number, max: number) {
+    return Math.min(Math.max(value, min), max);
 }
 
-type Track = {
-    track_id: string;
-    track_name: string;
-    track_number: number;
-    is_listened: boolean;
-}
+const wallTheme = {
+    "--wall-wood-1": "#2f1d12",
+    "--wall-wood-2": "#25160d",
+    "--wall-wood-edge": "#4a2f1c",
+    "--wall-gold": "#f5d7a0",
+    "--wall-cream": "#f4e6cf",
+} as CSSProperties;
 
-type URLProp = {
-    url: string
-}
-
-function AlbumCover({ url }: URLProp): React.ReactElement {
-    return (
-        <div>
-            <Image
-                src={ url }
-                alt="Album Cover"
-                width={200}
-                height={200}
-                className="object-cover"
-            />
-        </div>
-    )
-}
-
-
-export default function WallPage() {
-    const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
-    const [tracks, setTracks] = useState<Track[]>([]);
-    const [isTracksLoading, setIsTracksLoading] = useState(false);
-    const [tracksError, setTracksError] = useState<string | null>(null);
-
-    const { data, error, isLoading } = useSWR<Album[], FetcherError>(
-        `${API_BASE}/tracking`,
-        authedFetcher,
-        {
-            refreshInterval: 120000,
-            revalidateOnFocus: true,
-        }
-    );
+export default function DashboardPage() {
+    const [albums, setAlbums] = useState<Album[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [layoutReady, setLayoutReady] = useState(false);
+    const [dataReady, setDataReady] = useState(false);
+    const [wallItems, setWallItems] = useState<WallItem[]>([]);
+    const [draggingId, setDraggingId] = useState<string | null>(null);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const wallRef = useRef<HTMLDivElement | null>(null);
+    const dragRef = useRef<DragState | null>(null);
 
     useEffect(() => {
-        if (error?.status === 401) {
-            const loginUrl =
-                (error.info as { login_url?: string } | undefined)?.login_url ?? `${API_BASE}/`;
-            window.location.href = loginUrl;
+        const stored = window.localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored) as WallItem[];
+                if (Array.isArray(parsed)) {
+                    setWallItems(parsed);
+                }
+            } catch (err) {
+                console.error("Failed to parse saved dashboard layout", err);
+            }
         }
-    }, [error]);
+        setLayoutReady(true);
+    }, []);
 
-    const albums = useMemo(() => {
-        if (!data) {
-            return [];
+    useEffect(() => {
+        async function fetchTracking() {
+            let didRedirect = false;
+            let didLoad = false;
+            try {
+                const res = await fetch(`${API_BASE}/tracking`, {
+                    cache: "no-store",
+                    credentials: "include",
+                });
+
+                if (res.status === 401) {
+                    const body = await res.json().catch(() => ({}));
+                    const loginUrl = body?.login_url ?? `${API_BASE}/`;
+                    window.location.href = loginUrl;
+                    didRedirect = true;
+                    return;
+                }
+
+                if (!res.ok) {
+                    throw new Error("Failed to fetch tracking data");
+                }
+
+                const data = await res.json();
+                setAlbums(data);
+                didLoad = true;
+            } catch (err) {
+                setError(err instanceof Error ? err.message : "An error occurred");
+            } finally {
+                if (didRedirect) {
+                    return;
+                }
+                setLoading(false);
+                if (didLoad) {
+                    setDataReady(true);
+                }
+            }
         }
-        return [...data].sort((a, b) => b.percentage - a.percentage);
-    }, [data]);
 
-    const handleAlbumClick = async (album: Album) => {
-        setIsTracksLoading(true);
-        setTracksError(null);
-        setTracks([]);
-        // Don't set selectedAlbum yet - wait until tracks are fetched
+        fetchTracking();
+    }, []);
 
-        try {
-            const res = await fetch(`${API_BASE}/album-tracks?album_id=${album.album_id}`, {
-                cache: "no-store",
-                credentials: "include",
-            });
+    const eligibleAlbums = useMemo(() => {
+        return [...albums]
+            .filter((album) => album.percentage >= 0.999 || album.listened >= album.total)
+            .sort((a, b) => a.album_name.localeCompare(b.album_name));
+    }, [albums]);
 
-            if (res.status === 401) {
-                const body = await res.json().catch(() => ({}));
-                const loginUrl = body?.login_url ?? `${API_BASE}/`;
-                window.location.href = loginUrl;
+    const albumsById = useMemo(() => {
+        const map = new Map<string, Album>();
+        albums.forEach((album) => map.set(album.album_id, album));
+        return map;
+    }, [albums]);
+
+    useEffect(() => {
+        if (!layoutReady || !dataReady) {
+            return;
+        }
+        const eligibleIds = new Set(eligibleAlbums.map((album) => album.album_id));
+        setWallItems((prev) => prev.filter((item) => eligibleIds.has(item.album_id)));
+    }, [layoutReady, dataReady, eligibleAlbums]);
+
+    useEffect(() => {
+        if (!layoutReady) {
+            return;
+        }
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(wallItems));
+    }, [wallItems, layoutReady]);
+
+    useEffect(() => {
+        function handlePointerMove(event: PointerEvent) {
+            const dragState = dragRef.current;
+            const wall = wallRef.current;
+            if (!dragState || !wall) {
                 return;
             }
+            const wallRect = wall.getBoundingClientRect();
+            const nextX = event.clientX - wallRect.left - dragState.offsetX;
+            const nextY = event.clientY - wallRect.top - dragState.offsetY;
+            const maxX = wallRect.width - dragState.width;
+            const maxY = wallRect.height - dragState.height;
 
-            if (!res.ok) {
-                throw new Error('Failed to fetch album tracks');
-            }
-
-            const data = await res.json();
-            setTracks(data);
-            // Only set selectedAlbum after tracks are successfully fetched
-            setSelectedAlbum(album);
-        } catch (err) {
-            setTracksError(err instanceof Error ? err.message : 'An error occurred');
-            // Still show modal even on error so user can see the error message
-            setSelectedAlbum(album);
-        } finally {
-            setIsTracksLoading(false);
+            setWallItems((prev) =>
+                prev.map((item) =>
+                    item.album_id === dragState.album_id
+                        ? {
+                              ...item,
+                              x: clamp(nextX, 0, Math.max(0, maxX)),
+                              y: clamp(nextY, 0, Math.max(0, maxY)),
+                          }
+                        : item
+                )
+            );
         }
+
+        function handlePointerUp() {
+            if (dragRef.current) {
+                dragRef.current = null;
+                setDraggingId(null);
+            }
+        }
+
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+        window.addEventListener("pointercancel", handlePointerUp);
+
+        return () => {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+            window.removeEventListener("pointercancel", handlePointerUp);
+        };
+    }, []);
+
+    const wallIds = useMemo(() => new Set(wallItems.map((item) => item.album_id)), [wallItems]);
+
+    const handleAddToWall = (album: Album) => {
+        setWallItems((prev) => {
+            if (prev.some((item) => item.album_id === album.album_id)) {
+                return prev;
+            }
+            const wall = wallRef.current;
+            const baseSize = 160;
+            const padding = 24;
+            const wallWidth = wall?.clientWidth ?? 640;
+            const columns = Math.max(1, Math.floor((wallWidth - padding) / (baseSize + padding)));
+            const index = prev.length;
+            const x = padding + (index % columns) * (baseSize + padding);
+            const y = padding + Math.floor(index / columns) * (baseSize + padding);
+
+            return [...prev, { album_id: album.album_id, x, y }];
+        });
     };
 
-    const closeModal = () => {
-        setSelectedAlbum(null);
-        setTracks([]);
-        setTracksError(null);
-        setIsTracksLoading(false);
+    const handleRemoveFromWall = (albumId: string) => {
+        setWallItems((prev) => prev.filter((item) => item.album_id !== albumId));
     };
 
-    if (isLoading) {
+    const handlePointerDown = (albumId: string) => (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (event.button !== 0) {
+            return;
+        }
+        const wall = wallRef.current;
+        if (!wall) {
+            return;
+        }
+        const target = event.currentTarget;
+        const targetRect = target.getBoundingClientRect();
+
+        dragRef.current = {
+            album_id: albumId,
+            offsetX: event.clientX - targetRect.left,
+            offsetY: event.clientY - targetRect.top,
+            width: targetRect.width,
+            height: targetRect.height,
+        };
+        setDraggingId(albumId);
+        target.setPointerCapture(event.pointerId);
+    };
+
+    if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
-                <div className="text-white text-xl">Loading...</div>
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0c0906] via-[#1f140d] to-[#0f0b08]">
+                <div className={`${bodyFont.className} text-white text-xl`}>Loading...</div>
             </div>
         );
     }
 
-    if (error && error.status !== 401) {
+    if (error) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
-                <div className="text-red-500">Error: {error.message || 'Failed to load data'}</div>
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0c0906] via-[#1f140d] to-[#0f0b08]">
+                <div className={`${bodyFont.className} text-red-300 text-lg`}>Error: {error}</div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
-            <div className="max-w-7xl mx-auto">
-                <h1 className="font-display text-4xl font-bold text-white mb-8 text-center">
-                    Album Completion Wall
-                </h1>
-                
-                {albums.length === 0 ? (
-                    <div className="text-center text-white/70 text-lg">
-                        No albums tracked yet. Start listening to see your progress!
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-3 gap-6">
-                        {albums.map((album) => (
-                            <div
-                                key={album.album_id}
-                                onClick={() => handleAlbumClick(album)}
-                                className="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-6 hover:bg-white/20 transition-all duration-200 cursor-pointer"
-                            >
-                                <div className="flex flex-col items-center">
-                                    {/* Album Image - Fixed size for all albums */}
-                                    <div className="w-[200px] h-[200px] rounded-lg mb-4 overflow-hidden bg-gray-700 flex items-center justify-center">
-                                        {album.album_image ? (
-                                            <AlbumCover url={album.album_image} />
-                                        ) : (
-                                            <div className="text-center">
-                                                <div className="text-white/30 text-6xl mb-2">🎵</div>
-                                                <span className="text-white/40 text-sm">{album.album_image}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    
-                                    <h2 className="font-display text-xl font-bold text-white mb-2 text-center">
-                                        {album.album_name}
-                                    </h2>
-                                    
-                                    <p className="text-white/70 mb-4 text-center">
-                                        {album.artist}
-                                    </p>
-                                    
-                                    <div className="w-full">
-                                        <div className="flex justify-between text-sm text-white/80 mb-2">
-                                            <span>{album.listened} / {album.total} tracks</span>
-                                            <span>{Math.round(album.percentage * 100)}%</span>
-                                        </div>
-                                        
-                                        <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
-                                            <div
-                                                className="bg-[#1DB954] h-full rounded-full transition-all duration-300"
-                                                style={{ width: `${album.percentage * 100}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+        <div
+            className={`min-h-screen bg-gradient-to-br from-[#0c0906] via-[#1c120b] to-[#0f0b08] ${bodyFont.className}`}
+            style={wallTheme}
+        >
+            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <div className="flex items-center gap-3 mb-4">
+                    <button
+                        type="button"
+                        onClick={() => setWallItems([])}
+                        className="text-xs uppercase tracking-widest px-3 py-2 rounded-full border border-white/20 text-white/70 hover:border-white/40 hover:text-white transition-colors"
+                    >
+                        Clear Wall
+                    </button>
 
-            {/* Modal - Only show after tracks are fetched (or error) */}
-            {selectedAlbum && !isTracksLoading && (
+                    <button
+                        type="button"
+                        onClick={() => setIsDrawerOpen((open) => !open)}
+                        className="ml-auto inline-flex items-center gap-3 rounded-full border border-white/15 bg-black/30 px-4 py-2 text-white/80 hover:text-white hover:border-white/40 transition-colors"
+                    >
+                        <span className="flex flex-col gap-1">
+                            <span className="h-0.5 w-4 rounded-full bg-white/70" />
+                            <span className="h-0.5 w-6 rounded-full bg-white/70" />
+                            <span className="h-0.5 w-3 rounded-full bg-white/70" />
+                        </span>
+                        <span className={`${displayFont.className} text-lg tracking-[0.2em] uppercase`}>
+                            Albums
+                        </span>
+                        <span className="text-xs text-white/50">{eligibleAlbums.length}</span>
+                    </button>
+                </div>
+
                 <div
-                    className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-                    onClick={closeModal}
+                    ref={wallRef}
+                    className="relative w-full h-[80vh] min-h-[520px] rounded-[36px] border shadow-[0_30px_80px_rgba(0,0,0,0.55)] overflow-hidden select-none"
+                    style={{
+                        borderColor: "var(--wall-wood-edge)",
+                        backgroundImage:
+                            "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.45)), repeating-linear-gradient(90deg, var(--wall-wood-1) 0px, var(--wall-wood-1) 32px, var(--wall-wood-2) 32px, var(--wall-wood-2) 64px)",
+                    }}
                 >
                     <div
-                        className="bg-gradient-to-br from-[#191414] to-[#1DB954] rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Modal Header */}
-                        <div className="relative p-6 border-b border-white/20">
-                            <button
-                                onClick={closeModal}
-                                className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10"
-                            >
-                                ×
-                            </button>
-                            
-                            <div className="flex items-start gap-6 pr-10">
-                                {/* Album Image */}
-                                <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-700 flex-shrink-0">
-                                    {selectedAlbum.album_image ? (
-                                        <Image
-                                            src={selectedAlbum.album_image}
-                                            alt={selectedAlbum.album_name}
-                                            width={128}
-                                            height={128}
-                                            className="object-cover w-full h-full"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <div className="text-white/30 text-4xl">🎵</div>
-                                        </div>
-                                    )}
-                                </div>
-                                
-                                {/* Album Info */}
-                                <div className="flex-1 min-w-0">
-                                    <h2 className="font-display text-2xl font-bold text-white mb-2">
-                                        {selectedAlbum.album_name}
-                                    </h2>
-                                    <p className="text-white/70 mb-3">
-                                        {selectedAlbum.artist}
-                                    </p>
-                                    <div className="text-sm text-white/80">
-                                        <span>{selectedAlbum.listened} / {selectedAlbum.total} tracks listened</span>
-                                    </div>
-                                </div>
+                        className="absolute inset-0 opacity-60 pointer-events-none"
+                        style={{
+                            backgroundImage:
+                                "radial-gradient(circle at 15% 25%, rgba(255,255,255,0.08), transparent 35%), radial-gradient(circle at 80% 70%, rgba(0,0,0,0.35), transparent 45%)",
+                        }}
+                    />
+
+                    {wallItems.length === 0 ? (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="text-white/70 text-sm bg-black/30 rounded-full px-6 py-3">
+                                Add completed albums to start building your wall.
                             </div>
                         </div>
-
-                        {/* Tracks List */}
-                        <div className="flex-1 overflow-y-auto p-6">
-                            {tracksError ? (
-                                <div className="text-center text-red-400 py-8">
-                                    Error: {tracksError}
-                                </div>
-                            ) : tracks.length === 0 ? (
-                                <div className="text-center text-white/70 py-8">
-                                    No tracks found
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {tracks.map((track) => (
-                                        <div
-                                            key={track.track_id}
-                                            className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${
-                                                track.is_listened
-                                                    ? 'bg-[#1DB954]/20 hover:bg-[#1DB954]/30'
-                                                    : 'bg-white/5 hover:bg-white/10'
-                                            }`}
-                                        >
-                                            <div className="w-8 text-center text-white/60 text-sm">
-                                                {track.track_number}
+                    ) : (
+                        wallItems.map((item) => {
+                            const album = albumsById.get(item.album_id);
+                            if (!album) {
+                                return null;
+                            }
+                            const isDragging = draggingId === item.album_id;
+                            return (
+                                <div
+                                    key={item.album_id}
+                                    className={`absolute group cursor-grab active:cursor-grabbing ${
+                                        isDragging ? "z-30" : "z-10"
+                                    }`}
+                                    style={{
+                                        left: item.x,
+                                        top: item.y,
+                                        touchAction: "none",
+                                    }}
+                                    onPointerDown={handlePointerDown(item.album_id)}
+                                >
+                                    <div className="flex flex-col items-center">
+                                        <div className="relative w-[150px] h-[150px] md:w-[175px] md:h-[175px]">
+                                            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#111] via-[#1a1a1a] to-[#050505] shadow-[0_10px_25px_rgba(0,0,0,0.55)]" />
+                                            <div className="absolute inset-2 rounded-full border border-white/10" />
+                                            <div className="absolute inset-5 rounded-full border border-white/5" />
+                                            <div className="absolute inset-[26%] rounded-full overflow-hidden border border-white/10 bg-black/50">
+                                                {album.album_image ? (
+                                                    <Image
+                                                        src={album.album_image}
+                                                        alt={album.album_name}
+                                                        fill
+                                                        sizes="120px"
+                                                        className="object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-white/40 text-lg">note</div>
+                                                )}
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className={`text-white ${
-                                                    track.is_listened ? 'font-medium' : 'text-white/80'
-                                                }`}>
-                                                    {track.track_name}
-                                                </div>
-                                            </div>
-                                            {track.is_listened && (
-                                                <div className="text-[#1DB954] text-xl flex-shrink-0">
-                                                    ✓
-                                                </div>
-                                            )}
+                                            <div
+                                                className="absolute left-1/2 top-1/2 w-2 h-2 rounded-full -translate-x-1/2 -translate-y-1/2 shadow-[0_0_6px_rgba(0,0,0,0.6)]"
+                                                style={{ backgroundColor: "var(--wall-gold)" }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    handleRemoveFromWall(item.album_id);
+                                                }}
+                                                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-black/60 border border-white/20 text-white/70 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                x
+                                            </button>
                                         </div>
-                                    ))}
+                                        <div className="mt-2 text-center">
+                                            <div className="text-[11px] uppercase tracking-[0.2em] text-white/80">
+                                                {album.album_name}
+                                            </div>
+                                            <div className="text-[10px] uppercase tracking-[0.25em]" style={{ color: "var(--wall-gold)" }}>
+                                                {album.artist}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            )}
+                            );
+                        })
+                    )}
+                </div>
+            </div>
+
+            <div
+                className={`fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity z-40 ${
+                    isDrawerOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+                }`}
+                onClick={() => setIsDrawerOpen(false)}
+            />
+
+            <aside
+                className={`fixed right-0 top-0 h-full w-[320px] sm:w-[360px] bg-[#0f0b08]/95 border-l border-white/10 shadow-2xl z-50 transform transition-transform duration-300 ${
+                    isDrawerOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
+                }`}
+            >
+                <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+                    <div>
+                        <div className={`${displayFont.className} text-xl tracking-[0.25em] text-white`}>
+                            Completed
+                        </div>
+                        <div className="text-xs text-white/50 uppercase tracking-[0.2em]">
+                            Drag on wall after adding
                         </div>
                     </div>
+                    <button
+                        type="button"
+                        onClick={() => setIsDrawerOpen(false)}
+                        className="h-8 w-8 rounded-full border border-white/15 text-white/70 hover:text-white hover:border-white/40 transition-colors"
+                    >
+                        x
+                    </button>
                 </div>
-            )}
-            
-            {/* Loading overlay - show while fetching tracks */}
-            {isTracksLoading && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="text-white text-xl">Loading tracks...</div>
+
+                <div className="px-5 py-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm text-white/80">Albums ready</span>
+                        <span className="text-xs text-white/50">{eligibleAlbums.length}</span>
+                    </div>
+
+                    {eligibleAlbums.length === 0 ? (
+                        <div className="text-white/60 text-sm bg-black/30 rounded-2xl p-4">
+                            No completed albums yet.
+                        </div>
+                    ) : (
+                        <div className="space-y-3 max-h-[72vh] overflow-y-auto pr-1">
+                            {eligibleAlbums.map((album) => {
+                                const isAdded = wallIds.has(album.album_id);
+                                return (
+                                    <div
+                                        key={album.album_id}
+                                        className="flex items-center gap-3 rounded-2xl bg-black/30 hover:bg-black/40 transition-colors p-3"
+                                    >
+                                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-white/10 flex items-center justify-center">
+                                            {album.album_image ? (
+                                                <Image
+                                                    src={album.album_image}
+                                                    alt={album.album_name}
+                                                    width={48}
+                                                    height={48}
+                                                    className="object-cover w-full h-full"
+                                                />
+                                            ) : (
+                                                <span className="text-white/30 text-lg">note</span>
+                                            )}
+                                        </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-white text-sm font-semibold truncate">{album.album_name}</div>
+                                        <div className="text-white/60 text-xs truncate">{album.artist}</div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            isAdded ? handleRemoveFromWall(album.album_id) : handleAddToWall(album)
+                                        }
+                                        className={`text-xs uppercase tracking-widest px-3 py-1 rounded-full border transition-colors ${
+                                            isAdded
+                                                ? "border-white/30 text-white/70 hover:border-white/60 hover:text-white"
+                                                : "border-[#f5d7a0]/60 text-[#f5d7a0] hover:bg-[#f5d7a0]/10"
+                                        }`}
+                                    >
+                                        {isAdded ? "Remove" : "Add"}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                        </div>
+                    )}
                 </div>
-            )}
+            </aside>
         </div>
     );
 }
