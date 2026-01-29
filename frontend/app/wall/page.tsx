@@ -259,12 +259,12 @@ export default function DashboardPage() {
             className={`min-h-screen bg-gradient-to-br from-[#0c0906] via-[#1c120b] to-[#0f0b08] ${bodyFont.className}`}
             style={wallTheme}
         >
-            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                <div className="flex items-center gap-3 mb-4">
+            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
                     <button
                         type="button"
                         onClick={() => setWallItems([])}
-                        className="text-xs uppercase tracking-widest px-3 py-2 rounded-full border border-white/20 text-white/70 hover:border-white/40 hover:text-white transition-colors"
+                        className="w-full sm:w-auto text-[11px] sm:text-xs uppercase tracking-widest px-3 py-2 rounded-full border border-white/20 text-white/70 hover:border-white/40 hover:text-white transition-colors"
                     >
                         Clear Wall
                     </button>
@@ -272,7 +272,7 @@ export default function DashboardPage() {
                     <button
                         type="button"
                         onClick={() => setIsDrawerOpen((open) => !open)}
-                        className="ml-auto inline-flex items-center gap-3 rounded-full border border-white/15 bg-black/30 px-4 py-2 text-white/80 hover:text-white hover:border-white/40 transition-colors"
+                        className="w-full sm:w-auto sm:ml-auto inline-flex items-center justify-between sm:justify-start gap-3 rounded-full border border-white/15 bg-black/30 px-4 py-2 text-white/80 hover:text-white hover:border-white/40 transition-colors"
                     >
                         <span className="flex flex-col gap-1">
                             <span className="h-0.5 w-4 rounded-full bg-white/70" />
@@ -288,7 +288,7 @@ export default function DashboardPage() {
 
                 <div
                     ref={wallRef}
-                    className="relative w-full h-[80vh] min-h-[520px] rounded-[36px] border shadow-[0_30px_80px_rgba(0,0,0,0.55)] overflow-hidden select-none"
+                    className="relative w-full h-[70vh] sm:h-[80vh] min-h-[360px] sm:min-h-[520px] rounded-[24px] sm:rounded-[36px] border shadow-[0_30px_80px_rgba(0,0,0,0.55)] overflow-hidden select-none"
                     style={{
                         borderColor: "var(--wall-wood-edge)",
                         backgroundImage:
@@ -330,7 +330,7 @@ export default function DashboardPage() {
                                     onPointerDown={handlePointerDown(item.album_id)}
                                 >
                                     <div className="flex flex-col items-center">
-                                        <div className="relative w-[150px] h-[150px] md:w-[175px] md:h-[175px]">
+                                        <div className="relative w-[140px] h-[140px] sm:w-[150px] sm:h-[150px] md:w-[175px] md:h-[175px]">
                                             <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#111] via-[#1a1a1a] to-[#050505] shadow-[0_10px_25px_rgba(0,0,0,0.55)]" />
                                             <div className="absolute inset-2 rounded-full border border-white/10" />
                                             <div className="absolute inset-5 rounded-full border border-white/5" />
@@ -386,7 +386,7 @@ export default function DashboardPage() {
             />
 
             <aside
-                className={`fixed right-0 top-0 h-full w-[320px] sm:w-[360px] bg-[#0f0b08]/95 border-l border-white/10 shadow-2xl z-50 transform transition-transform duration-300 ${
+                className={`fixed right-0 top-0 h-full w-full sm:w-[360px] bg-[#0f0b08]/95 border-l border-white/10 shadow-2xl z-50 transform transition-transform duration-300 ${
                     isDrawerOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
                 }`}
             >
@@ -419,15 +419,15 @@ export default function DashboardPage() {
                             No completed albums yet.
                         </div>
                     ) : (
-                        <div className="space-y-3 max-h-[72vh] overflow-y-auto pr-1">
+                        <div className="space-y-3 max-h-[65vh] sm:max-h-[72vh] overflow-y-auto pr-1">
                             {eligibleAlbums.map((album) => {
                                 const isAdded = wallIds.has(album.album_id);
                                 return (
                                     <div
                                         key={album.album_id}
-                                        className="flex items-center gap-3 rounded-2xl bg-black/30 hover:bg-black/40 transition-colors p-3"
+                                        className="flex items-center gap-3 rounded-2xl bg-black/30 hover:bg-black/40 transition-colors p-2.5 sm:p-3"
                                     >
-                                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-white/10 flex items-center justify-center">
+                                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl overflow-hidden bg-white/10 flex items-center justify-center">
                                             {album.album_image ? (
                                                 <Image
                                                     src={album.album_image}

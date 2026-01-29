@@ -56,17 +56,17 @@ export default function Navbar() {
 
     return (
         <nav className="bg-gradient-to-br from-[#191414] to-[#1DB954] border-b border-white/20">
-            <div className="max-w-7xl mx-auto px-8 py-4">
-                <div className="flex items-center justify-between">
-                    <Link href="/wall" className="font-display text-2xl font-bold text-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <Link href="/wall" className="font-display text-xl sm:text-2xl font-bold text-white">
                         Playthrough
                     </Link>
-                    <div className="flex gap-6 font-display">
+                    <div className="flex flex-wrap justify-center sm:justify-end gap-2 sm:gap-4 font-display w-full sm:w-auto">
                         {navLinks.map((link) => (
                             <Link
                                 key={link.href}
                                 href={link.href}
-                                className={`px-4 py-2 rounded-lg transition-all duration-200 ${
+                                className={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base rounded-lg whitespace-nowrap transition-all duration-200 ${
                                     pathname === link.href
                                         ? 'bg-white/20 text-white font-semibold'
                                         : 'text-white/70 hover:text-white hover:bg-white/10'
