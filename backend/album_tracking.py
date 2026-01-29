@@ -32,11 +32,8 @@ celery.conf.beat_schedule = {
 # maybe have to thread each user or something along those lines
 def track_all_users_recently_listened():
     users_response = supabase.table('users').select('user_id').execute()
-    job = group(
-        get_recently_listened(user['user_id'])
-        for user in users_response.data
-    )
-    job.apply_async()
+    for user in users_response.data:
+        get_recently_listened(user["user_id"])
 
 # get 50 tracks within last 1 hour
 def get_recently_listened(user_id):
