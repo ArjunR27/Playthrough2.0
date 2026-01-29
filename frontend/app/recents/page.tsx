@@ -85,7 +85,7 @@ export default function RecentlyListenedPage() {
         <div className="min-h-screen p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
             <div className="max-w-7xl mx-auto">
                 <h1 className="font-display text-4xl font-bold text-white mb-8 text-center">
-                    Recently Listened Songs
+                    Recents
                 </h1>
 
                 {recents.length === 0 ? (
