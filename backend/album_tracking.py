@@ -34,7 +34,7 @@ celery.conf.beat_schedule = {
 def track_all_users_recently_listened():
     users_response = supabase.table('users').select('user_id').execute()
     job = group(
-        get_recently_listened.s(user['user_id'])
+        get_recently_listened.delay(user['user_id'])
         for user in users_response.data
     )
     job.apply_async()
