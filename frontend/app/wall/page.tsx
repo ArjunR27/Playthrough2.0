@@ -40,9 +40,45 @@ type DragState = {
 };
 
 const STORAGE_KEY = "playthrough.dashboard.wall.v1";
+const WALL_PADDING = 24;
+const TEXT_BLOCK_HEIGHT = 40;
 
 function clamp(value: number, min: number, max: number) {
     return Math.min(Math.max(value, min), max);
+}
+
+function getLayoutMetrics() {
+    const baseSize = typeof window === "undefined"
+        ? 150
+        : window.matchMedia("(min-width: 768px)").matches
+            ? 175
+            : window.matchMedia("(min-width: 640px)").matches
+                ? 150
+                : 140;
+
+    return {
+        cardSize: baseSize,
+        rowHeight: baseSize + TEXT_BLOCK_HEIGHT,
+        padding: WALL_PADDING,
+    };
+}
+
+function layoutWallItems(items: WallItem[], wallWidth: number) {
+    const { cardSize, rowHeight, padding } = getLayoutMetrics();
+    const safeWidth = Math.max(0, wallWidth);
+    const columns = Math.max(1, Math.floor((safeWidth - padding) / (cardSize + padding)));
+
+    return items.map((item, index) => ({
+        ...item,
+        x: padding + (index % columns) * (cardSize + padding),
+        y: padding + Math.floor(index / columns) * (rowHeight + padding),
+    }));
+}
+
+function needsReflow(items: WallItem[], wallWidth: number) {
+    const { cardSize } = getLayoutMetrics();
+    const maxX = Math.max(0, wallWidth - cardSize);
+    return items.some((item) => item.x > maxX || item.x < 0);
 }
 
 const wallTheme = {
@@ -192,18 +228,70 @@ export default function DashboardPage() {
         };
     }, []);
 
+    useEffect(() => {
+        if (!layoutReady) {
+            return;
+        }
+        const wall = wallRef.current;
+        if (!wall) {
+            return;
+        }
+
+        const ensureLayoutFits = (width: number) => {
+            if (width <= 0) {
+                return;
+            }
+            setWallItems((prev) => {
+                if (prev.length === 0) {
+                    return prev;
+                }
+                if (!needsReflow(prev, width)) {
+                    return prev;
+                }
+                return layoutWallItems(prev, width);
+            });
+        };
+
+        let lastWidth = wall.clientWidth;
+        ensureLayoutFits(lastWidth);
+
+        const observer = new ResizeObserver(() => {
+            if (draggingId) {
+                return;
+            }
+            const nextWidth = wall.clientWidth;
+            if (nextWidth === lastWidth) {
+                return;
+            }
+            lastWidth = nextWidth;
+            setWallItems((prev) => {
+                if (prev.length === 0) {
+                    return prev;
+                }
+                return layoutWallItems(prev, nextWidth);
+            });
+        });
+
+        observer.observe(wall);
+
+        return () => {
+            observer.disconnect();
+        };
+    }, [layoutReady, draggingId]);
+
     const wallIds = useMemo(() => new Set(wallItems.map((item) => item.album_id)), [wallItems]);
     const wallContentHeight = useMemo(() => {
         if (wallItems.length === 0) {
             return null;
         }
+        const { rowHeight, padding } = getLayoutMetrics();
         let maxY = 0;
         for (const item of wallItems) {
             if (item.y > maxY) {
                 maxY = item.y;
             }
         }
-        return Math.ceil(maxY + 240);
+        return Math.ceil(maxY + rowHeight + padding);
     }, [wallItems]);
 
     const handleAddToWall = (album: Album) => {
@@ -212,13 +300,12 @@ export default function DashboardPage() {
                 return prev;
             }
             const wall = wallRef.current;
-            const baseSize = 160;
-            const padding = 24;
+            const { cardSize, rowHeight, padding } = getLayoutMetrics();
             const wallWidth = wall?.clientWidth ?? 640;
-            const columns = Math.max(1, Math.floor((wallWidth - padding) / (baseSize + padding)));
+            const columns = Math.max(1, Math.floor((wallWidth - padding) / (cardSize + padding)));
             const index = prev.length;
-            const x = padding + (index % columns) * (baseSize + padding);
-            const y = padding + Math.floor(index / columns) * (baseSize + padding);
+            const x = padding + (index % columns) * (cardSize + padding);
+            const y = padding + Math.floor(index / columns) * (rowHeight + padding);
 
             return [...prev, { album_id: album.album_id, x, y }];
         });
