@@ -205,16 +205,40 @@ def get_albums_completion(user_id):
     resp = supabase.rpc('get_album_completion', {'p_user_id': user_id}).execute()
     output = []
     for row in resp.data:
+        total = row['total']
+        listened = row['listened']
+        percentage = listened / total if total else 0
         output.append({
             'album_id': row['album_id'],
             'album_name': row['album_name'],
             'artist': row['primary_artist'],
-            'listened': row['listened'],
-            'total': row['total'],
-            'percentage': row['listened'] / row['total'],
+            'listened': listened,
+            'total': total,
+            'percentage': percentage,
             'album_image': row['album_image'],
-        })
+            })
     return output
+
+def get_albums_completion_sorted(user_id):
+    # this is an rpc call to a query i created in supabase that gives me what i want
+    # way faster
+    resp = supabase.rpc('get_album_completion', {'p_user_id': user_id}).execute()
+    output = []
+    for row in resp.data:
+        total = row['total']
+        listened = row['listened']
+        percentage = listened / total if total else 0
+        if percentage < 1.0:
+            output.append({
+                'album_id': row['album_id'],
+                'album_name': row['album_name'],
+                'artist': row['primary_artist'],
+                'listened': listened,
+                'total': total,
+                'percentage': listened / total,
+                'album_image': row['album_image'],
+            })
+    return sorted(output, key=lambda album: album['percentage'], reverse=True)
 
 
 def get_album_tracks(user_id: str, album_id: str):

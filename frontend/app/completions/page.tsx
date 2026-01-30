@@ -49,9 +49,16 @@ export default function WallPage() {
     const [tracks, setTracks] = useState<Track[]>([]);
     const [isTracksLoading, setIsTracksLoading] = useState(false);
     const [tracksError, setTracksError] = useState<string | null>(null);
+    const [showUnfinished, setShowUnfinished] = useState(false);
+
+    const trackingUrl = useMemo(() => {
+        return showUnfinished
+            ? `${API_BASE}/tracking?filter=unfinished`
+            : `${API_BASE}/tracking`;
+    }, [showUnfinished]);
 
     const { data, error, isLoading } = useSWR<Album[], FetcherError>(
-        `${API_BASE}/tracking`,
+        trackingUrl,
         authedFetcher,
         {
             refreshInterval: 120000,
@@ -136,9 +143,24 @@ export default function WallPage() {
     return (
         <div className="min-h-screen p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
             <div className="max-w-7xl mx-auto">
-                <h1 className="font-display text-3xl sm:text-4xl font-bold text-white mb-6 sm:mb-8 text-center">
-                    Completions
-                </h1>
+                <div className="flex flex-col items-center gap-3 mb-6 sm:mb-8">
+                    <h1 className="font-display text-3xl sm:text-4xl font-bold text-white text-center">
+                        Completions
+                    </h1>
+                    <button
+                        type="button"
+                        onClick={() => setShowUnfinished((prev) => !prev)}
+                        aria-pressed={showUnfinished}
+                        className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold uppercase tracking-wide transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#191414] ${
+                            showUnfinished
+                                ? "bg-white text-[#191414] shadow-lg"
+                                : "bg-[#1DB954] text-[#0b1b12] shadow-lg shadow-black/30 hover:bg-[#2bd66a] hover:shadow-xl"
+                        }`}
+                    >
+                        <span className="text-base">⏳</span>
+                        Find Unfinished Albums
+                    </button>
+                </div>
                 
                 {albums.length === 0 ? (
                     <div className="text-center text-white/70 text-lg">

@@ -9,7 +9,7 @@ from flask import Flask, jsonify, redirect, request, session, url_for
 from supabase import create_client, Client
 from flask_cors import CORS
 
-from album_tracking import get_albums_completion, get_album_tracks
+from album_tracking import get_albums_completion, get_albums_completion_sorted, get_album_tracks
 from validate_token import get_spotify_oauth, get_valid_token
 load_environment()
 
@@ -156,7 +156,11 @@ def album_tracker():
             "login_url": url_for("login", _external=True),
         }), 401
     
-    albums = get_albums_completion(session['user_id'])
+    filter_value = request.args.get("filter")
+    if filter_value == "unfinished":
+        albums = get_albums_completion_sorted(session['user_id'])
+    else:
+        albums = get_albums_completion(session['user_id'])
     return jsonify(albums)
 
 @app.route("/album-tracks")
