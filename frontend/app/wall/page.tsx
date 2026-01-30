@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerE
 import Image from "next/image";
 import Link from "next/link";
 import { Bebas_Neue, Sora } from "next/font/google";
-import { API_BASE, withReturnTo } from "../lib/api";
+import { API_BASE } from "../lib/api";
 
 const displayFont = Bebas_Neue({
     subsets: ["latin"],
@@ -134,8 +134,7 @@ export default function DashboardPage() {
     const redirectToLogin = async (res: Response) => {
         const body = await res.json().catch(() => ({}));
         const loginUrl = body?.login_url ?? `${API_BASE}/`;
-        const returnTo = window.location.href;
-        window.location.href = withReturnTo(loginUrl, returnTo);
+        window.location.href = loginUrl;
     };
 
     const persistWallId = (nextWallId: string) => {
