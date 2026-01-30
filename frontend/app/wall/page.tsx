@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Bebas_Neue, Sora } from "next/font/google";
 import { API_BASE } from "../lib/api";
 
@@ -40,6 +41,7 @@ type DragState = {
 };
 
 const STORAGE_KEY = "playthrough.dashboard.wall.v1";
+const WALL_ID_KEY = "playthrough.dashboard.wall_id.v1";
 const WALL_PADDING = 24;
 const TEXT_BLOCK_HEIGHT = 40;
 
@@ -91,15 +93,17 @@ const wallTheme = {
 
 export default function DashboardPage() {
     const [albums, setAlbums] = useState<Album[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [trackingLoading, setTrackingLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [layoutReady, setLayoutReady] = useState(false);
-    const [dataReady, setDataReady] = useState(false);
+    const [wallId, setWallId] = useState<string | null>(null);
     const [wallItems, setWallItems] = useState<WallItem[]>([]);
     const [draggingId, setDraggingId] = useState<string | null>(null);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const wallRef = useRef<HTMLDivElement | null>(null);
     const dragRef = useRef<DragState | null>(null);
+    const savedLayoutRef = useRef<Map<string, WallItem>>(new Map());
+    const didSyncRef = useRef(false);
 
     useEffect(() => {
         const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -107,19 +111,40 @@ export default function DashboardPage() {
             try {
                 const parsed = JSON.parse(stored) as WallItem[];
                 if (Array.isArray(parsed)) {
-                    setWallItems(parsed);
+                    const nextMap = new Map<string, WallItem>();
+                    parsed.forEach((item) => {
+                        if (item?.album_id) {
+                            nextMap.set(item.album_id, item);
+                        }
+                    });
+                    savedLayoutRef.current = nextMap;
+                    setWallItems(Array.from(nextMap.values()));
                 }
             } catch (err) {
                 console.error("Failed to parse saved dashboard layout", err);
             }
         }
+        const storedWallId = window.localStorage.getItem(WALL_ID_KEY);
+        if (storedWallId) {
+            setWallId(storedWallId);
+        }
         setLayoutReady(true);
     }, []);
+
+    const redirectToLogin = async (res: Response) => {
+        const body = await res.json().catch(() => ({}));
+        const loginUrl = body?.login_url ?? `${API_BASE}/`;
+        window.location.href = loginUrl;
+    };
+
+    const persistWallId = (nextWallId: string) => {
+        setWallId(nextWallId);
+        window.localStorage.setItem(WALL_ID_KEY, nextWallId);
+    };
 
     useEffect(() => {
         async function fetchTracking() {
             let didRedirect = false;
-            let didLoad = false;
             try {
                 const res = await fetch(`${API_BASE}/tracking`, {
                     cache: "no-store",
@@ -127,9 +152,7 @@ export default function DashboardPage() {
                 });
 
                 if (res.status === 401) {
-                    const body = await res.json().catch(() => ({}));
-                    const loginUrl = body?.login_url ?? `${API_BASE}/`;
-                    window.location.href = loginUrl;
+                    await redirectToLogin(res);
                     didRedirect = true;
                     return;
                 }
@@ -140,17 +163,13 @@ export default function DashboardPage() {
 
                 const data = await res.json();
                 setAlbums(data);
-                didLoad = true;
             } catch (err) {
                 setError(err instanceof Error ? err.message : "An error occurred");
             } finally {
                 if (didRedirect) {
                     return;
                 }
-                setLoading(false);
-                if (didLoad) {
-                    setDataReady(true);
-                }
+                setTrackingLoading(false);
             }
         }
 
@@ -163,6 +182,10 @@ export default function DashboardPage() {
             .sort((a, b) => a.album_name.localeCompare(b.album_name));
     }, [albums]);
 
+    const eligibleAlbumIds = useMemo(() => {
+        return new Set(eligibleAlbums.map((album) => album.album_id));
+    }, [eligibleAlbums]);
+
     const albumsById = useMemo(() => {
         const map = new Map<string, Album>();
         albums.forEach((album) => map.set(album.album_id, album));
@@ -170,19 +193,68 @@ export default function DashboardPage() {
     }, [albums]);
 
     useEffect(() => {
-        if (!layoutReady || !dataReady) {
+        if (!layoutReady || trackingLoading) {
             return;
         }
-        const eligibleIds = new Set(eligibleAlbums.map((album) => album.album_id));
-        setWallItems((prev) => prev.filter((item) => eligibleIds.has(item.album_id)));
-    }, [layoutReady, dataReady, eligibleAlbums]);
+        setWallItems((prev) => prev.filter((item) => eligibleAlbumIds.has(item.album_id)));
+    }, [layoutReady, trackingLoading, eligibleAlbumIds]);
 
     useEffect(() => {
         if (!layoutReady) {
             return;
         }
+        savedLayoutRef.current = new Map(wallItems.map((item) => [item.album_id, item]));
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(wallItems));
     }, [wallItems, layoutReady]);
+
+    useEffect(() => {
+        if (!layoutReady || trackingLoading) {
+            return;
+        }
+        if (didSyncRef.current) {
+            return;
+        }
+        const albumIds = wallItems
+            .map((item) => item.album_id)
+            .filter((albumId) => eligibleAlbumIds.has(albumId));
+        didSyncRef.current = true;
+        if (albumIds.length === 0) {
+            return;
+        }
+
+        const syncWallItems = async () => {
+            let activeWallId = wallId ?? undefined;
+            for (const albumId of albumIds) {
+                const res = await fetch(`${API_BASE}/api/walls/items`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({
+                        album_id: albumId,
+                        wall_id: activeWallId,
+                    }),
+                });
+
+                if (res.status === 401) {
+                    await redirectToLogin(res);
+                    return;
+                }
+
+                if (!res.ok) {
+                    console.error("Failed to sync wall item", albumId);
+                    continue;
+                }
+
+                const body = await res.json().catch(() => ({}));
+                if (!activeWallId && body?.wall_id) {
+                    activeWallId = body.wall_id;
+                    persistWallId(body.wall_id);
+                }
+            }
+        };
+
+        syncWallItems();
+    }, [layoutReady, trackingLoading, wallItems, eligibleAlbumIds, wallId]);
 
     useEffect(() => {
         function handlePointerMove(event: PointerEvent) {
@@ -294,25 +366,110 @@ export default function DashboardPage() {
         return Math.ceil(maxY + rowHeight + padding);
     }, [wallItems]);
 
-    const handleAddToWall = (album: Album) => {
-        setWallItems((prev) => {
-            if (prev.some((item) => item.album_id === album.album_id)) {
-                return prev;
-            }
-            const wall = wallRef.current;
-            const { cardSize, rowHeight, padding } = getLayoutMetrics();
-            const wallWidth = wall?.clientWidth ?? 640;
-            const columns = Math.max(1, Math.floor((wallWidth - padding) / (cardSize + padding)));
-            const index = prev.length;
-            const x = padding + (index % columns) * (cardSize + padding);
-            const y = padding + Math.floor(index / columns) * (rowHeight + padding);
+    const handleAddToWall = async (album: Album) => {
+        if (wallIds.has(album.album_id)) {
+            return;
+        }
+        try {
+            const res = await fetch(`${API_BASE}/api/walls/items`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    album_id: album.album_id,
+                    wall_id: wallId ?? undefined,
+                }),
+            });
 
-            return [...prev, { album_id: album.album_id, x, y }];
-        });
+            if (res.status === 401) {
+                await redirectToLogin(res);
+                return;
+            }
+
+            if (!res.ok) {
+                const detail = await res.json().catch(() => ({}));
+                console.error("Add wall item failed", detail);
+                throw new Error("Failed to add album to wall");
+            }
+
+            const body = await res.json().catch(() => ({}));
+            if (body?.wall_id) {
+                persistWallId(body.wall_id);
+            }
+
+            setWallItems((prev) => {
+                if (prev.some((item) => item.album_id === album.album_id)) {
+                    return prev;
+                }
+                const wall = wallRef.current;
+                const { cardSize, rowHeight, padding } = getLayoutMetrics();
+                const wallWidth = wall?.clientWidth ?? 640;
+                const columns = Math.max(1, Math.floor((wallWidth - padding) / (cardSize + padding)));
+                const index = prev.length;
+                const x = padding + (index % columns) * (cardSize + padding);
+                const y = padding + Math.floor(index / columns) * (rowHeight + padding);
+
+                return [...prev, { album_id: album.album_id, x, y }];
+            });
+        } catch (err) {
+            console.error(err);
+        }
     };
 
-    const handleRemoveFromWall = (albumId: string) => {
-        setWallItems((prev) => prev.filter((item) => item.album_id !== albumId));
+    const handleRemoveFromWall = async (albumId: string) => {
+        try {
+            const res = await fetch(`${API_BASE}/api/walls/items`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    album_id: albumId,
+                    wall_id: wallId ?? undefined,
+                }),
+            });
+
+            if (res.status === 401) {
+                await redirectToLogin(res);
+                return;
+            }
+
+            if (!res.ok) {
+                throw new Error("Failed to remove album from wall");
+            }
+
+            setWallItems((prev) => prev.filter((item) => item.album_id !== albumId));
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleClearWall = async () => {
+        if (wallItems.length === 0) {
+            return;
+        }
+        try {
+            const res = await fetch(`${API_BASE}/api/walls/items`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    wall_id: wallId ?? undefined,
+                }),
+            });
+
+            if (res.status === 401) {
+                await redirectToLogin(res);
+                return;
+            }
+
+            if (!res.ok) {
+                throw new Error("Failed to clear wall");
+            }
+
+            setWallItems([]);
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     const handlePointerDown = (albumId: string) => (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -336,6 +493,8 @@ export default function DashboardPage() {
         setDraggingId(albumId);
         target.setPointerCapture(event.pointerId);
     };
+
+    const loading = trackingLoading;
 
     if (loading) {
         return (
@@ -362,11 +521,18 @@ export default function DashboardPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
                     <button
                         type="button"
-                        onClick={() => setWallItems([])}
+                        onClick={handleClearWall}
                         className="w-full sm:w-auto text-[11px] sm:text-xs uppercase tracking-widest px-3 py-2 rounded-full border border-white/20 text-white/70 hover:border-white/40 hover:text-white transition-colors"
                     >
                         Clear Wall
                     </button>
+
+                    <Link
+                        href="/shared_walls"
+                        className="w-full sm:w-auto text-[11px] sm:text-xs uppercase tracking-widest px-3 py-2 rounded-full border border-white/15 text-white/60 hover:border-white/40 hover:text-white transition-colors text-center"
+                    >
+                        Shared Walls
+                    </Link>
 
                     <button
                         type="button"
