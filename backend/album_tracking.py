@@ -39,6 +39,7 @@ def track_all_users_recently_listened():
 def get_recently_listened(user_id):
     decrypted_token = get_valid_token(user_id)
     sp = spotipy.Spotify(auth=decrypted_token)
+    known_artist_ids: set[str] = set()
 
     one_hour_ago = int((time.time() - 3600) * 1000)
     recently_listened = sp.current_user_recently_played(limit=50, after=one_hour_ago)
@@ -107,10 +108,30 @@ def get_recently_listened(user_id):
         }).execute()
 
         for idx, artist in enumerate(artists):
-            supabase.table('artists').upsert({
-                'artist_id': artist['id'],
-                'artist_name': artist['name']
-            }).execute()
+            artist_id = artist["id"]
+            artist_name = artist["name"]
+            if artist_id not in known_artist_ids:
+                existing = (
+                    supabase.table("artists")
+                    .select("artist_id")
+                    .eq("artist_id", artist_id)
+                    .limit(1)
+                    .execute()
+                )
+                if existing.data:
+                    known_artist_ids.add(artist_id)
+                else:
+                    try:
+                        artist_info = sp.artist(artist_id)
+                        genres = artist_info.get("genres", [])
+                        supabase.table("artists").upsert({
+                            "artist_id": artist_id,
+                            "artist_name": artist_name,
+                            "genres": genres,
+                        }).execute()
+                        known_artist_ids.add(artist_id)
+                    except Exception as exc:
+                        print(f"Error fetching genres for {artist_id}: {exc}")
 
             supabase.table('track_artists').upsert({
                 'track_id': track_id,
