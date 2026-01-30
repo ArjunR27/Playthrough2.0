@@ -393,8 +393,16 @@ def add_wall_item():
         return error
 
     data = request.get_json(silent=True) or {}
+    album_ids = data.get("album_ids")
     album_id = data.get("album_id") or request.args.get("album_id")
-    if not album_id:
+    if album_ids is not None:
+        if not isinstance(album_ids, list):
+            return jsonify({"error": "album_ids must be a list"}), 400
+        album_ids = [entry for entry in album_ids if entry]
+        album_ids = list(dict.fromkeys(album_ids))
+        if not album_ids:
+            return jsonify({"error": "album_ids is required"}), 400
+    elif not album_id:
         return jsonify({"error": "album_id is required"}), 400
 
     wall_id = data.get("wall_id")
@@ -411,12 +419,16 @@ def add_wall_item():
         return jsonify({"error": "unable to create wall"}), 500
 
     try:
-        resp = supabase.table("wall_items").upsert({
-            "wall_id": wall["wall_id"],
-            "album_id": album_id,
-        }).execute()
+        if album_ids is not None:
+            payload = [{"wall_id": wall["wall_id"], "album_id": entry} for entry in album_ids]
+        else:
+            payload = {
+                "wall_id": wall["wall_id"],
+                "album_id": album_id,
+            }
+        resp = supabase.table("wall_items").upsert(payload).execute()
     except Exception as exc:
-        print(f"Error adding wall item {album_id} to {wall['wall_id']}: {exc}")
+        print(f"Error adding wall item(s) to {wall['wall_id']}: {exc}")
         return jsonify({
             "error": "failed to add wall item",
             "detail": str(exc),
@@ -426,6 +438,7 @@ def add_wall_item():
         "message": "added",
         "wall_id": wall["wall_id"],
         "album_id": album_id,
+        "album_ids": album_ids,
     }), 200
 
 @app.route("/api/walls/items", methods=["DELETE"])
