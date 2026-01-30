@@ -1,6 +1,7 @@
 import base64
 import os
 import time
+from urllib.parse import urlparse
 
 import spotipy
 from cryptography.fernet import Fernet
@@ -21,6 +22,50 @@ def _parse_cors_origins():
     if frontend_url:
         return [frontend_url.rstrip("/")]
     return ["http://127.0.0.1:8080", "http://localhost:8080"]
+
+def _extract_origin_host(origin):
+    origin = origin.strip()
+    if not origin:
+        return ""
+    if origin == "*":
+        return "*"
+    if "://" not in origin:
+        origin = f"https://{origin}"
+    parsed = urlparse(origin)
+    return parsed.netloc.lower()
+
+def _allowed_redirect_hosts():
+    allowed = set()
+    raw = os.getenv("CORS_ORIGINS")
+    if raw:
+        for origin in raw.split(","):
+            host = _extract_origin_host(origin)
+            if host:
+                allowed.add(host)
+    frontend = os.getenv("FRONTEND_URL")
+    if frontend:
+        host = _extract_origin_host(frontend)
+        if host:
+            allowed.add(host)
+    return allowed
+
+def _sanitize_return_to(return_to):
+    if not return_to:
+        return None
+    try:
+        parsed = urlparse(return_to)
+    except Exception:
+        return None
+    if parsed.scheme not in ("http", "https"):
+        return None
+    if not parsed.netloc:
+        return None
+    allowed = _allowed_redirect_hosts()
+    if "*" in allowed:
+        return return_to
+    if parsed.netloc.lower() not in allowed:
+        return None
+    return return_to
 
 def _is_production():
     app_env = os.getenv("APP_ENV") or os.getenv("FLASK_ENV") or "development"
@@ -216,7 +261,9 @@ def _get_owner_display_name(owner_id):
 @app.route("/")
 def login():
     sp_oauth = get_spotify_oauth()
-    auth_url = sp_oauth.get_authorize_url()
+    raw_return_to = request.args.get("return_to")
+    safe_return_to = _sanitize_return_to(raw_return_to)
+    auth_url = sp_oauth.get_authorize_url(state=safe_return_to or "")
     print("AUTH URL: " + auth_url)
     return redirect(auth_url)
 
@@ -243,7 +290,9 @@ def callback_page():
         'token_expires_at': token_info['expires_at']
     }).execute()
 
-    return redirect(frontend_url)
+    state = request.args.get("state") or ""
+    safe_return_to = _sanitize_return_to(state)
+    return redirect(safe_return_to or frontend_url)
 
 @app.route("/profile")
 def profile():

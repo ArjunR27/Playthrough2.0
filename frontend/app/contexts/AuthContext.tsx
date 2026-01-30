@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { API_BASE } from '../lib/api';
+import { API_BASE, withReturnTo } from '../lib/api';
 
 type User = {
     id: string;
@@ -33,7 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 credentials: 'include',
             });
             const data = await res.json();
-            window.location.href = data.login_url;
+            const loginUrl = data?.login_url ?? `${API_BASE}/`;
+            const returnTo = window.location.href;
+            window.location.href = withReturnTo(loginUrl, returnTo);
         } catch (err) {
             console.error('Login failed:', err);
         }

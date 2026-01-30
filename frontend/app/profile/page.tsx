@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { API_BASE } from '../lib/api';
+import { API_BASE, withReturnTo } from '../lib/api';
 import { authedFetcher, type FetcherError } from '../lib/swr';
 
 type ProfileData = {
@@ -35,7 +35,8 @@ export default function ProfilePage() {
         if (error?.status === 401) {
             const loginUrl =
                 (error.info as { login_url?: string } | undefined)?.login_url ?? `${API_BASE}/`;
-            window.location.href = loginUrl;
+            const returnTo = window.location.href;
+            window.location.href = withReturnTo(loginUrl, returnTo);
         }
     }, [error]);
 

@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { API_BASE } from './lib/api';
+import { API_BASE, withReturnTo } from './lib/api';
 
 export default function HomePage() {
     const [isChecking, setIsChecking] = useState(true);
+    const [loginHref, setLoginHref] = useState(`${API_BASE}/`);
     const router = useRouter();
 
     useEffect(() => {
@@ -39,6 +40,15 @@ export default function HomePage() {
         checkAuth();
     }, [router]);
 
+    useEffect(() => {
+        try {
+            const returnTo = new URL("/wall", window.location.href).toString();
+            setLoginHref(withReturnTo(`${API_BASE}/`, returnTo));
+        } catch (err) {
+            setLoginHref(`${API_BASE}/`);
+        }
+    }, []);
+
     // Show loading state while checking auth
     if (isChecking) {
         return (
@@ -59,7 +69,7 @@ export default function HomePage() {
                     Track your album listening progress and discover your music journey
                 </p>
                 <a
-                    href={`${API_BASE}/`}
+                    href={loginHref}
                     className="inline-block bg-white text-[#191414] font-semibold px-8 py-4 rounded-full hover:bg-white/90 transition-all duration-200 text-lg shadow-lg"
                 >
                     Track now

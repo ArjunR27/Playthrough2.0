@@ -12,3 +12,16 @@ if (
 export const API_BASE = (
     process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_API_BASE
 ).replace(/\/+$/, "");
+
+export function withReturnTo(loginUrl: string, returnTo?: string | null): string {
+    if (!returnTo) {
+        return loginUrl;
+    }
+    try {
+        const url = new URL(loginUrl);
+        url.searchParams.set("return_to", returnTo);
+        return url.toString();
+    } catch (err) {
+        return loginUrl;
+    }
+}
