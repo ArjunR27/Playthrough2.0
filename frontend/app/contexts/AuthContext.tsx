@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { API_BASE } from '../lib/api';
 
 type User = {
@@ -20,12 +20,50 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
     const [user, setUser] = useState<User | null>(null);
+    const checkingRef = useRef<Promise<void> | null>(null);
 
-    const checkAuth = async () => {
-        // Don't check auth proactively - let API calls handle it
-        // This function is kept for compatibility but does nothing
-        return;
-    };
+    const checkAuth = useCallback(async () => {
+        if (checkingRef.current) {
+            await checkingRef.current;
+            return;
+        }
+
+        const task = (async () => {
+            try {
+                const res = await fetch(`${API_BASE}/profile`, {
+                    cache: "no-store",
+                    credentials: "include",
+                });
+
+                if (res.status === 401) {
+                    setIsAuthenticated(false);
+                    setUser(null);
+                    return;
+                }
+
+                if (!res.ok) {
+                    throw new Error("request_failed");
+                }
+
+                const data = await res.json().catch(() => ({}));
+                setIsAuthenticated(true);
+                setUser({
+                    id: data?.id ?? "",
+                    display_name: data?.display_name ?? null,
+                });
+            } catch (err) {
+                setIsAuthenticated(false);
+                setUser(null);
+            }
+        })();
+
+        checkingRef.current = task;
+        try {
+            await task;
+        } finally {
+            checkingRef.current = null;
+        }
+    }, []);
 
     const login = async () => {
         try {
@@ -40,14 +78,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     useEffect(() => {
-        // Don't check auth on mount - let API calls handle it naturally
-        // Only handle auth callback from URL params if needed
+        // Run a single auth check on mount.
+        checkAuth();
+
         const params = new URLSearchParams(window.location.search);
         if (params.get('auth') === 'success') {
-            // Clean up URL
             window.history.replaceState({}, '', window.location.pathname);
         }
-    }, []);
+
+        const handleAuthChange = () => {
+            checkAuth();
+        };
+
+        window.addEventListener('auth-change', handleAuthChange);
+        return () => {
+            window.removeEventListener('auth-change', handleAuthChange);
+        };
+    }, [checkAuth]);
 
     return (
         <AuthContext.Provider value={{ isAuthenticated, user, login, checkAuth }}>

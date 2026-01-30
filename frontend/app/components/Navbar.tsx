@@ -1,48 +1,15 @@
 "use client"
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { API_BASE } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Navbar() {
     const pathname = usePathname();
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-
-    useEffect(() => {
-        async function checkAuth() {
-            try {
-                const res = await fetch(`${API_BASE}/tracking`, {
-                    cache: "no-store",
-                    credentials: "include",
-                });
-
-                setIsAuthenticated(res.status !== 401);
-            } catch (err) {
-                setIsAuthenticated(false);
-            }
-        }
-
-        checkAuth();
-        
-        // Listen for auth change events (e.g., when user signs out)
-        const handleAuthChange = () => {
-            checkAuth();
-        };
-        
-        window.addEventListener('auth-change', handleAuthChange);
-        
-        // Re-check when pathname changes
-        const interval = setInterval(checkAuth, 1000);
-        
-        return () => {
-            clearInterval(interval);
-            window.removeEventListener('auth-change', handleAuthChange);
-        };
-    }, [pathname]);
+    const { isAuthenticated } = useAuth();
 
     // Don't show navbar if not authenticated
-    if (isAuthenticated === false) {
+    if (isAuthenticated !== true) {
         return null;
     }
 
