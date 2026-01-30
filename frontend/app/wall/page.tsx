@@ -40,8 +40,6 @@ type DragState = {
     height: number;
 };
 
-const STORAGE_KEY = "playthrough.dashboard.wall.v1";
-const WALL_ID_KEY = "playthrough.dashboard.wall_id.v1";
 const WALL_PADDING = 24;
 const TEXT_BLOCK_HEIGHT = 40;
 
@@ -104,36 +102,11 @@ export default function DashboardPage() {
     const [saveError, setSaveError] = useState<string | null>(null);
     const [savedAlbumIds, setSavedAlbumIds] = useState<string[]>([]);
     const [baselineReady, setBaselineReady] = useState(false);
-    const [hasLocalLayout, setHasLocalLayout] = useState(false);
     const wallRef = useRef<HTMLDivElement | null>(null);
     const dragRef = useRef<DragState | null>(null);
-    const savedLayoutRef = useRef<Map<string, WallItem>>(new Map());
     const didLoadServerRef = useRef(false);
 
     useEffect(() => {
-        const stored = window.localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored) as WallItem[];
-                if (Array.isArray(parsed)) {
-                    const nextMap = new Map<string, WallItem>();
-                    parsed.forEach((item) => {
-                        if (item?.album_id) {
-                            nextMap.set(item.album_id, item);
-                        }
-                    });
-                    savedLayoutRef.current = nextMap;
-                    setWallItems(Array.from(nextMap.values()));
-                    setHasLocalLayout(nextMap.size > 0);
-                }
-            } catch (err) {
-                console.error("Failed to parse saved dashboard layout", err);
-            }
-        }
-        const storedWallId = window.localStorage.getItem(WALL_ID_KEY);
-        if (storedWallId) {
-            setWallId(storedWallId);
-        }
         setLayoutReady(true);
     }, []);
 
@@ -145,7 +118,6 @@ export default function DashboardPage() {
 
     const persistWallId = (nextWallId: string) => {
         setWallId(nextWallId);
-        window.localStorage.setItem(WALL_ID_KEY, nextWallId);
     };
 
     useEffect(() => {
@@ -206,15 +178,7 @@ export default function DashboardPage() {
     }, [layoutReady, trackingLoading, eligibleAlbumIds]);
 
     useEffect(() => {
-        if (!layoutReady) {
-            return;
-        }
-        savedLayoutRef.current = new Map(wallItems.map((item) => [item.album_id, item]));
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(wallItems));
-    }, [wallItems, layoutReady]);
-
-    useEffect(() => {
-        if (!layoutReady || trackingLoading || didLoadServerRef.current) {
+        if (!layoutReady || didLoadServerRef.current) {
             return;
         }
         didLoadServerRef.current = true;
@@ -243,27 +207,31 @@ export default function DashboardPage() {
                 if (wall?.wall_id) {
                     persistWallId(wall.wall_id);
                 }
-                const nextSaved = items.map((item: { album_id?: string | null }) => item.album_id).filter(Boolean) as string[];
+                const nextSaved = items
+                    .map((item: { album_id?: string | null }) => item.album_id)
+                    .filter(Boolean) as string[];
                 setSavedAlbumIds(nextSaved);
                 setBaselineReady(true);
 
-                if (!hasLocalLayout && nextSaved.length > 0) {
+                if (nextSaved.length > 0) {
                     const seedItems = nextSaved.map((album_id) => ({ album_id, x: 0, y: 0 }));
                     const wallWidth = wallRef.current?.clientWidth ?? 640;
                     setWallItems(layoutWallItems(seedItems, wallWidth));
+                } else {
+                    setWallItems([]);
                 }
             } catch (err) {
                 if (didRedirect) {
                     return;
                 }
                 console.error(err);
-                setSavedAlbumIds(Array.from(savedLayoutRef.current.keys()));
+                setSavedAlbumIds(wallItems.map((item) => item.album_id));
                 setBaselineReady(true);
             }
         };
 
         loadServerWall();
-    }, [layoutReady, trackingLoading, redirectToLogin, hasLocalLayout]);
+    }, [layoutReady, redirectToLogin, wallItems]);
 
     useEffect(() => {
         function handlePointerMove(event: PointerEvent) {
