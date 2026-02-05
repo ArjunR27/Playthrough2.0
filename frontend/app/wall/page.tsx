@@ -102,6 +102,7 @@ export default function DashboardPage() {
     const [saveError, setSaveError] = useState<string | null>(null);
     const [savedAlbumIds, setSavedAlbumIds] = useState<string[]>([]);
     const [baselineReady, setBaselineReady] = useState(false);
+    const [albumSearch, setAlbumSearch] = useState("");
     const wallRef = useRef<HTMLDivElement | null>(null);
     const dragRef = useRef<DragState | null>(null);
     const didLoadServerRef = useRef(false);
@@ -159,6 +160,18 @@ export default function DashboardPage() {
             .filter((album) => album.percentage >= 0.999 || album.listened >= album.total)
             .sort((a, b) => a.album_name.localeCompare(b.album_name));
     }, [albums]);
+
+    const filteredEligibleAlbums = useMemo(() => {
+        const query = albumSearch.trim().toLowerCase();
+        if (!query) {
+            return eligibleAlbums;
+        }
+        return eligibleAlbums.filter((album) => {
+            const name = album.album_name.toLowerCase();
+            const artist = album.artist.toLowerCase();
+            return name.includes(query) || artist.includes(query);
+        });
+    }, [albumSearch, eligibleAlbums]);
 
     const eligibleAlbumIds = useMemo(() => {
         return new Set(eligibleAlbums.map((album) => album.album_id));
@@ -710,18 +723,39 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="px-5 py-4">
+                    <div className="mb-4">
+                        <label htmlFor="completed-search" className="sr-only">
+                            Search completed albums
+                        </label>
+                        <input
+                            id="completed-search"
+                            type="search"
+                            value={albumSearch}
+                            onChange={(event) => setAlbumSearch(event.target.value)}
+                            placeholder="Search albums or artists"
+                            className="w-full rounded-full border border-white/15 bg-black/30 px-4 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/40"
+                        />
+                    </div>
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-sm text-white/80">Albums ready</span>
-                        <span className="text-xs text-white/50">{eligibleAlbums.length}</span>
+                        <span className="text-xs text-white/50">
+                            {albumSearch.trim()
+                                ? `${filteredEligibleAlbums.length} / ${eligibleAlbums.length}`
+                                : eligibleAlbums.length}
+                        </span>
                     </div>
 
                     {eligibleAlbums.length === 0 ? (
                         <div className="text-white/60 text-sm bg-black/30 rounded-2xl p-4">
                             No completed albums yet.
                         </div>
+                    ) : filteredEligibleAlbums.length === 0 ? (
+                        <div className="text-white/60 text-sm bg-black/30 rounded-2xl p-4">
+                            No matches for "{albumSearch.trim()}".
+                        </div>
                     ) : (
                         <div className="space-y-3 max-h-[65vh] sm:max-h-[72vh] overflow-y-auto pr-1">
-                            {eligibleAlbums.map((album) => {
+                            {filteredEligibleAlbums.map((album) => {
                                 const isAdded = wallIds.has(album.album_id);
                                 return (
                                     <div
