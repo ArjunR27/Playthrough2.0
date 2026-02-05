@@ -50,6 +50,7 @@ export default function WallPage() {
     const [isTracksLoading, setIsTracksLoading] = useState(false);
     const [tracksError, setTracksError] = useState<string | null>(null);
     const [showUnfinished, setShowUnfinished] = useState(false);
+    const [albumSearch, setAlbumSearch] = useState("");
 
     const trackingUrl = useMemo(() => {
         return showUnfinished
@@ -80,6 +81,18 @@ export default function WallPage() {
         }
         return [...data].sort((a, b) => b.percentage - a.percentage);
     }, [data]);
+
+    const filteredAlbums = useMemo(() => {
+        const query = albumSearch.trim().toLowerCase();
+        if (!query) {
+            return albums;
+        }
+        return albums.filter((album) => {
+            const name = album.album_name.toLowerCase();
+            const artist = album.artist.toLowerCase();
+            return name.includes(query) || artist.includes(query);
+        });
+    }, [albums, albumSearch]);
 
     const handleAlbumClick = async (album: Album) => {
         setIsTracksLoading(true);
@@ -160,15 +173,32 @@ export default function WallPage() {
                         <span className="text-base">⏳</span>
                         Find Unfinished Albums
                     </button>
+                    <div className="w-full max-w-xl">
+                        <label htmlFor="completion-search" className="sr-only">
+                            Search albums or artists
+                        </label>
+                        <input
+                            id="completion-search"
+                            type="search"
+                            value={albumSearch}
+                            onChange={(event) => setAlbumSearch(event.target.value)}
+                            placeholder="Search albums or artists"
+                            className="w-full rounded-full border border-white/20 bg-black/20 px-4 py-2 text-sm sm:text-base text-white placeholder:text-white/40 focus:outline-none focus:border-white/40"
+                        />
+                    </div>
                 </div>
                 
                 {albums.length === 0 ? (
                     <div className="text-center text-white/70 text-lg">
                         No albums tracked yet. Start listening to see your progress!
                     </div>
+                ) : filteredAlbums.length === 0 ? (
+                    <div className="text-center text-white/70 text-lg">
+                        No matches for "{albumSearch.trim()}".
+                    </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                        {albums.map((album) => (
+                        {filteredAlbums.map((album) => (
                             <div
                                 key={album.album_id}
                                 onClick={() => handleAlbumClick(album)}
