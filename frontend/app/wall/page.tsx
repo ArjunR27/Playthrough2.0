@@ -42,6 +42,92 @@ type DragState = {
 
 const WALL_PADDING = 24;
 const TEXT_BLOCK_HEIGHT = 40;
+const WALL_TRACKING_CACHE_KEY = "playthrough.wall.tracking.v1";
+const WALL_SAVED_CACHE_KEY = "playthrough.wall.saved.v1";
+
+type TrackingCache = {
+    albums: Album[];
+    updatedAt: number;
+};
+
+type WallCache = {
+    wallId: string | null;
+    albumIds: string[];
+    updatedAt: number;
+};
+
+function loadTrackingCache(): Album[] {
+    if (typeof window === "undefined") {
+        return [];
+    }
+    try {
+        const raw = window.localStorage.getItem(WALL_TRACKING_CACHE_KEY);
+        if (!raw) {
+            return [];
+        }
+        const parsed = JSON.parse(raw) as Partial<TrackingCache>;
+        if (!Array.isArray(parsed?.albums)) {
+            return [];
+        }
+        return parsed.albums;
+    } catch {
+        return [];
+    }
+}
+
+function loadWallCache(): WallCache | null {
+    if (typeof window === "undefined") {
+        return null;
+    }
+    try {
+        const raw = window.localStorage.getItem(WALL_SAVED_CACHE_KEY);
+        if (!raw) {
+            return null;
+        }
+        const parsed = JSON.parse(raw) as Partial<WallCache>;
+        if (!Array.isArray(parsed?.albumIds)) {
+            return null;
+        }
+        return {
+            wallId: typeof parsed.wallId === "string" ? parsed.wallId : null,
+            albumIds: parsed.albumIds,
+            updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : 0,
+        };
+    } catch {
+        return null;
+    }
+}
+
+function saveTrackingCache(albums: Album[]) {
+    if (typeof window === "undefined") {
+        return;
+    }
+    try {
+        const payload: TrackingCache = {
+            albums,
+            updatedAt: Date.now(),
+        };
+        window.localStorage.setItem(WALL_TRACKING_CACHE_KEY, JSON.stringify(payload));
+    } catch {
+        // Ignore cache write failures.
+    }
+}
+
+function saveWallCache(wallId: string | null, albumIds: string[]) {
+    if (typeof window === "undefined") {
+        return;
+    }
+    try {
+        const payload: WallCache = {
+            wallId,
+            albumIds,
+            updatedAt: Date.now(),
+        };
+        window.localStorage.setItem(WALL_SAVED_CACHE_KEY, JSON.stringify(payload));
+    } catch {
+        // Ignore cache write failures.
+    }
+}
 
 function clamp(value: number, min: number, max: number) {
     return Math.min(Math.max(value, min), max);
@@ -90,17 +176,19 @@ const wallTheme = {
 } as CSSProperties;
 
 export default function DashboardPage() {
-    const [albums, setAlbums] = useState<Album[]>([]);
-    const [trackingLoading, setTrackingLoading] = useState(true);
+    const [cachedAlbums] = useState(() => loadTrackingCache());
+    const [cachedWall] = useState(() => loadWallCache());
+    const [albums, setAlbums] = useState<Album[]>(cachedAlbums);
+    const [trackingLoading, setTrackingLoading] = useState(cachedAlbums.length === 0);
     const [error, setError] = useState<string | null>(null);
     const [layoutReady, setLayoutReady] = useState(false);
-    const [wallId, setWallId] = useState<string | null>(null);
+    const [wallId, setWallId] = useState<string | null>(cachedWall?.wallId ?? null);
     const [wallItems, setWallItems] = useState<WallItem[]>([]);
     const [draggingId, setDraggingId] = useState<string | null>(null);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
-    const [savedAlbumIds, setSavedAlbumIds] = useState<string[]>([]);
+    const [savedAlbumIds, setSavedAlbumIds] = useState<string[]>(cachedWall?.albumIds ?? []);
     const [baselineReady, setBaselineReady] = useState(false);
     const [albumSearch, setAlbumSearch] = useState("");
     const wallRef = useRef<HTMLDivElement | null>(null);
@@ -142,6 +230,7 @@ export default function DashboardPage() {
 
                 const data = await res.json();
                 setAlbums(data);
+                saveTrackingCache(data);
             } catch (err) {
                 setError(err instanceof Error ? err.message : "An error occurred");
             } finally {
@@ -191,6 +280,27 @@ export default function DashboardPage() {
     }, [layoutReady, trackingLoading, eligibleAlbumIds]);
 
     useEffect(() => {
+        if (!layoutReady) {
+            return;
+        }
+        setWallItems((prev) => {
+            const wallWidth = wallRef.current?.clientWidth ?? 640;
+            if (prev.length === 0) {
+                if (!cachedWall?.albumIds?.length) {
+                    return prev;
+                }
+                const seedItems = cachedWall.albumIds.map((album_id) => ({ album_id, x: 0, y: 0 }));
+                return layoutWallItems(seedItems, wallWidth);
+            }
+            const hasLayout = prev.some((item) => item.x !== 0 || item.y !== 0);
+            if (hasLayout) {
+                return prev;
+            }
+            return layoutWallItems(prev, wallWidth);
+        });
+    }, [layoutReady, cachedWall]);
+
+    useEffect(() => {
         if (!layoutReady || didLoadServerRef.current) {
             return;
         }
@@ -220,10 +330,12 @@ export default function DashboardPage() {
                 if (wall?.wall_id) {
                     persistWallId(wall.wall_id);
                 }
+                const nextWallId = wall?.wall_id ?? (items.length > 0 ? wallId : null);
                 const nextSaved = items
                     .map((item: { album_id?: string | null }) => item.album_id)
                     .filter(Boolean) as string[];
                 setSavedAlbumIds(nextSaved);
+                saveWallCache(nextWallId, nextSaved);
                 setBaselineReady(true);
 
                 if (nextSaved.length > 0) {
@@ -442,6 +554,7 @@ export default function DashboardPage() {
                 }
 
                 setSavedAlbumIds([]);
+                saveWallCache(wallId, []);
                 return;
             }
 
@@ -485,10 +598,12 @@ export default function DashboardPage() {
             }
 
             const body = await res.json().catch(() => ({}));
+            const nextWallId = body?.wall_id ?? wallId ?? null;
             if (body?.wall_id) {
                 persistWallId(body.wall_id);
             }
             setSavedAlbumIds(albumIds);
+            saveWallCache(nextWallId, albumIds);
         } catch (err) {
             console.error(err);
             setSaveError(err instanceof Error ? err.message : "Failed to save wall");
