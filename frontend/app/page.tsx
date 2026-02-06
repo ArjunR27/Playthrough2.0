@@ -42,7 +42,7 @@ export default function HomePage() {
     // Show loading state while checking auth
     if (isChecking) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
                 <div className="text-white text-xl">Loading...</div>
             </div>
         );
@@ -50,7 +50,7 @@ export default function HomePage() {
 
     // Show marketing page if not logged in
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
             <div className="max-w-4xl mx-auto text-center px-8">
                 <h1 className="font-display text-5xl sm:text-6xl tracking-[0.12em] uppercase text-white mb-6">
                     Playthrough
