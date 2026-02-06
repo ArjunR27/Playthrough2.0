@@ -68,7 +68,7 @@ export default function ProfilePage() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
                 <div className="text-white text-xl">Loading...</div>
             </div>
         );
@@ -76,7 +76,7 @@ export default function ProfilePage() {
 
     if (error && error.status !== 401) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
                 <div className="text-red-300">Error: {error.message || 'Failed to load data'}</div>
             </div>
         );
@@ -89,7 +89,7 @@ export default function ProfilePage() {
     const profileImage = profile.images && profile.images.length > 0 ? profile.images[0].url : null;
 
     return (
-        <div className="min-h-screen p-4 sm:p-6 lg:p-8 bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
+        <div className="min-h-screen p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
             <div className="max-w-4xl mx-auto">
                 <h1 className="font-display text-3xl sm:text-4xl tracking-[0.12em] uppercase text-white mb-6 sm:mb-8 text-center">
                     Profile
@@ -158,7 +158,7 @@ export default function ProfilePage() {
                                         href={profile.external_urls.spotify}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="inline-flex items-center justify-center px-5 py-2.5 sm:px-6 sm:py-3 rounded-full bg-[#1DB954] text-white font-semibold hover:bg-[#1ed760] transition-all duration-200 text-center"
+                                        className="inline-flex items-center justify-center text-[11px] sm:text-xs uppercase tracking-widest px-5 py-2.5 sm:px-6 sm:py-3 rounded-full border border-[#1DB954]/60 text-[#1DB954] hover:border-[#1DB954] hover:text-[#1ed760] transition-colors text-center"
                                     >
                                         View on Spotify
                                     </a>

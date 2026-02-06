@@ -28,12 +28,12 @@ export default function Navbar() {
                     <Link href="/wall" className="font-display text-xl sm:text-2xl tracking-[0.12em] uppercase text-white">
                         Playthrough
                     </Link>
-                    <div className="flex flex-wrap justify-center sm:justify-end gap-2 sm:gap-4 w-full sm:w-auto">
+                    <div className="flex flex-nowrap justify-between sm:justify-end gap-2 sm:gap-4 w-full sm:w-auto">
                         {navLinks.map((link) => (
                             <Link
                                 key={link.href}
                                 href={link.href}
-                                className={`px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-xs uppercase tracking-widest rounded-full whitespace-nowrap transition-all duration-200 ${
+                                className={`px-2 py-1 sm:px-4 sm:py-2 text-[10px] sm:text-xs uppercase tracking-widest rounded-full whitespace-nowrap transition-all duration-200 ${
                                     pathname === link.href
                                         ? 'border border-white/25 text-white'
                                         : 'border border-transparent text-white/60 hover:text-white hover:border-white/30'
