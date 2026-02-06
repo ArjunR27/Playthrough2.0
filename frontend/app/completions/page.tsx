@@ -148,7 +148,7 @@ export default function WallPage() {
     if (error && error.status !== 401) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
-                <div className="text-red-500">Error: {error.message || 'Failed to load data'}</div>
+                <div className="text-red-300">Error: {error.message || 'Failed to load data'}</div>
             </div>
         );
     }
@@ -157,14 +157,14 @@ export default function WallPage() {
         <div className="min-h-screen p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
             <div className="max-w-7xl mx-auto">
                 <div className="flex flex-col items-center gap-3 mb-6 sm:mb-8">
-                    <h1 className="font-display text-3xl sm:text-4xl font-bold text-white text-center">
+                    <h1 className="font-display text-3xl sm:text-4xl tracking-[0.12em] uppercase text-white text-center">
                         Completions
                     </h1>
                     <button
                         type="button"
                         onClick={() => setShowUnfinished((prev) => !prev)}
                         aria-pressed={showUnfinished}
-                        className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold uppercase tracking-wide transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#191414] ${
+                        className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[11px] sm:text-xs uppercase tracking-widest transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#17110E] ${
                             showUnfinished
                                 ? "bg-white text-[#191414] shadow-lg"
                                 : "bg-[#1DB954] text-[#0b1b12] shadow-lg shadow-black/30 hover:bg-[#2bd66a] hover:shadow-xl"
@@ -217,7 +217,7 @@ export default function WallPage() {
                                         )}
                                     </div>
                                     
-                                    <h2 className="font-display text-lg sm:text-xl font-bold text-white mb-2 text-center">
+                                    <h2 className="font-display text-xl sm:text-2xl font-bold text-white mb-2 text-center">
                                         {album.album_name}
                                     </h2>
                                     
@@ -266,7 +266,7 @@ export default function WallPage() {
                             
                             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 pr-8 sm:pr-10">
                                 {/* Album Image */}
-                                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-lg overflow-hidden bg-gray-700 flex-shrink-0">
+                                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-lg overflow-hidden bg-black/40 flex-shrink-0">
                                     {selectedAlbum.album_image ? (
                                         <Image
                                             src={selectedAlbum.album_image}
@@ -300,7 +300,7 @@ export default function WallPage() {
                         {/* Tracks List */}
                         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                             {tracksError ? (
-                                <div className="text-center text-red-400 py-8">
+                                <div className="text-center text-red-300 py-8">
                                     Error: {tracksError}
                                 </div>
                             ) : tracks.length === 0 ? (
@@ -329,7 +329,7 @@ export default function WallPage() {
                                                 </div>
                                             </div>
                                             {track.is_listened && (
-                                                <div className="text-[#1DB954] text-xl flex-shrink-0">
+                                                <div className="text-[#f4e6cf] text-xl flex-shrink-0">
                                                     ✓
                                                 </div>
                                             )}

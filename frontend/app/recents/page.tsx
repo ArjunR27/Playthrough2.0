@@ -76,7 +76,7 @@ export default function RecentlyListenedPage() {
     if (error && error.status !== 401) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
-                <div className="text-red-500">Error: {error.message || 'Failed to load data'}</div>
+                <div className="text-red-300">Error: {error.message || 'Failed to load data'}</div>
             </div>
         );
     }
@@ -84,7 +84,7 @@ export default function RecentlyListenedPage() {
     return (
         <div className="min-h-screen p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
             <div className="max-w-7xl mx-auto">
-                <h1 className="font-display text-3xl sm:text-4xl font-bold text-white mb-6 sm:mb-8 text-center">
+                <h1 className="font-display text-3xl sm:text-4xl tracking-[0.12em] uppercase text-white mb-6 sm:mb-8 text-center">
                     Recents
                 </h1>
 
@@ -111,7 +111,7 @@ export default function RecentlyListenedPage() {
                                         )}
                                     </div>
 
-                                    <h2 className="font-display text-lg sm:text-xl font-bold text-white mb-2 text-center">
+                                    <h2 className="font-display text-xl sm:text-2xl font-bold text-white mb-2 text-center">
                                         {song.track_name}
                                     </h2>
 

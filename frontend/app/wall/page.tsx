@@ -3,18 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bebas_Neue, Sora } from "next/font/google";
 import { API_BASE } from "../lib/api";
-
-const displayFont = Bebas_Neue({
-    subsets: ["latin"],
-    weight: ["400"],
-});
-
-const bodyFont = Sora({
-    subsets: ["latin"],
-    weight: ["300", "400", "600"],
-});
 
 type Album = {
     album_id: string;
@@ -638,23 +627,23 @@ export default function DashboardPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0c0906] via-[#1f140d] to-[#0f0b08]">
-                <div className={`${bodyFont.className} text-white text-xl`}>Loading...</div>
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
+                <div className="font-body text-white text-xl">Loading...</div>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0c0906] via-[#1f140d] to-[#0f0b08]">
-                <div className={`${bodyFont.className} text-red-300 text-lg`}>Error: {error}</div>
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
+                <div className="font-body text-red-300 text-lg">Error: {error}</div>
             </div>
         );
     }
 
     return (
         <div
-            className={`min-h-screen bg-gradient-to-br from-[#0c0906] via-[#1c120b] to-[#0f0b08] ${bodyFont.className}`}
+            className="min-h-screen bg-gradient-to-b from-[#1D1411] to-[#0F0B09] font-body"
             style={wallTheme}
         >
             <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
@@ -698,7 +687,7 @@ export default function DashboardPage() {
                             <span className="h-0.5 w-6 rounded-full bg-white/70" />
                             <span className="h-0.5 w-3 rounded-full bg-white/70" />
                         </span>
-                        <span className={`${displayFont.className} text-lg tracking-[0.2em] uppercase`}>
+                        <span className="font-display text-lg tracking-[0.2em] uppercase">
                             Albums
                         </span>
                         <span className="text-xs text-white/50">{eligibleAlbums.length}</span>
@@ -815,13 +804,13 @@ export default function DashboardPage() {
             />
 
             <aside
-                className={`fixed right-0 top-0 h-full w-full sm:w-[360px] bg-[#0f0b08]/95 border-l border-white/10 shadow-2xl z-50 transform transition-transform duration-300 ${
+                className={`fixed right-0 top-0 h-full w-full sm:w-[360px] bg-[#17110E]/95 border-l border-white/10 shadow-2xl z-50 transform transition-transform duration-300 ${
                     isDrawerOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
                 }`}
             >
                 <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
                     <div>
-                        <div className={`${displayFont.className} text-xl tracking-[0.25em] text-white`}>
+                        <div className="font-display text-xl tracking-[0.25em] text-white">
                             Completed
                         </div>
                         <div className="text-xs text-white/50 uppercase tracking-[0.2em]">

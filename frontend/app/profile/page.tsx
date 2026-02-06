@@ -68,7 +68,7 @@ export default function ProfilePage() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
                 <div className="text-white text-xl">Loading...</div>
             </div>
         );
@@ -76,8 +76,8 @@ export default function ProfilePage() {
 
     if (error && error.status !== 401) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
-                <div className="text-red-500">Error: {error.message || 'Failed to load data'}</div>
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
+                <div className="text-red-300">Error: {error.message || 'Failed to load data'}</div>
             </div>
         );
     }
@@ -89,13 +89,13 @@ export default function ProfilePage() {
     const profileImage = profile.images && profile.images.length > 0 ? profile.images[0].url : null;
 
     return (
-        <div className="min-h-screen p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
+        <div className="min-h-screen p-4 sm:p-6 lg:p-8 bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
             <div className="max-w-4xl mx-auto">
-                <h1 className="font-display text-3xl sm:text-4xl font-bold text-white mb-6 sm:mb-8 text-center">
+                <h1 className="font-display text-3xl sm:text-4xl tracking-[0.12em] uppercase text-white mb-6 sm:mb-8 text-center">
                     Profile
                 </h1>
                 
-                <div className="bg-white/10 backdrop-blur-lg rounded-xl shadow-xl p-6 sm:p-8">
+                <div className="bg-black/30 backdrop-blur-lg rounded-2xl border border-white/10 shadow-[0_18px_50px_rgba(0,0,0,0.45)] p-6 sm:p-8">
                     <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
                         {/* Profile Image */}
                         <div className="flex-shrink-0">
@@ -110,7 +110,7 @@ export default function ProfilePage() {
                                     />
                                 </div>
                             ) : (
-                                <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 rounded-full bg-gray-700 flex items-center justify-center border-4 border-white/20">
+                                <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 rounded-full bg-black/40 flex items-center justify-center border-4 border-white/20">
                                     <span className="text-white/50 text-6xl">👤</span>
                                 </div>
                             )}
@@ -127,25 +127,25 @@ export default function ProfilePage() {
                             )}
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-                                <div className="bg-white/5 rounded-lg p-4">
+                                <div className="bg-black/30 rounded-lg p-4">
                                     <p className="text-white/60 text-sm mb-1">User ID</p>
                                     <p className="text-white font-semibold">{profile.id}</p>
                                 </div>
 
-                                <div className="bg-white/5 rounded-lg p-4">
+                                <div className="bg-black/30 rounded-lg p-4">
                                     <p className="text-white/60 text-sm mb-1">Followers</p>
                                     <p className="text-white font-semibold">{profile.followers.toLocaleString()}</p>
                                 </div>
 
                                 {profile.country && (
-                                    <div className="bg-white/5 rounded-lg p-4">
+                                    <div className="bg-black/30 rounded-lg p-4">
                                         <p className="text-white/60 text-sm mb-1">Country</p>
                                         <p className="text-white font-semibold">{profile.country}</p>
                                     </div>
                                 )}
 
                                 {profile.product && (
-                                    <div className="bg-white/5 rounded-lg p-4">
+                                    <div className="bg-black/30 rounded-lg p-4">
                                         <p className="text-white/60 text-sm mb-1">Subscription</p>
                                         <p className="text-white font-semibold capitalize">{profile.product}</p>
                                     </div>
@@ -158,14 +158,14 @@ export default function ProfilePage() {
                                         href={profile.external_urls.spotify}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="inline-block bg-[#1DB954] text-white font-semibold px-5 py-2.5 sm:px-6 sm:py-3 rounded-full hover:bg-[#1ed760] transition-all duration-200 text-center"
+                                        className="inline-flex items-center justify-center px-5 py-2.5 sm:px-6 sm:py-3 rounded-full bg-[#1DB954] text-white font-semibold hover:bg-[#1ed760] transition-all duration-200 text-center"
                                     >
                                         View on Spotify
                                     </a>
                                 )}
                                 <button
                                     onClick={handleSignOut}
-                                    className="inline-block bg-red-600 text-white font-semibold px-5 py-2.5 sm:px-6 sm:py-3 rounded-full hover:bg-red-700 transition-all duration-200"
+                                    className="inline-flex items-center justify-center text-[11px] sm:text-xs uppercase tracking-widest px-5 py-2.5 sm:px-6 sm:py-3 rounded-full border border-red-300/40 text-red-200 hover:border-red-200 hover:text-red-100 transition-colors"
                                 >
                                     Sign Out
                                 </button>

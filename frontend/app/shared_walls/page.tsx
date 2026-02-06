@@ -3,18 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bebas_Neue, Sora } from "next/font/google";
 import { API_BASE } from "../lib/api";
-
-const displayFont = Bebas_Neue({
-    subsets: ["latin"],
-    weight: ["400"],
-});
-
-const bodyFont = Sora({
-    subsets: ["latin"],
-    weight: ["300", "400", "600"],
-});
 
 type SharedWallItem = {
     album_id: string;
@@ -101,29 +90,29 @@ export default function SharedWallsPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0c0906] via-[#1f140d] to-[#0f0b08]">
-                <div className={`${bodyFont.className} text-white text-xl`}>Loading...</div>
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
+                <div className="font-body text-white text-xl">Loading...</div>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0c0906] via-[#1f140d] to-[#0f0b08]">
-                <div className={`${bodyFont.className} text-red-300 text-lg`}>Error: {error}</div>
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
+                <div className="font-body text-red-300 text-lg">Error: {error}</div>
             </div>
         );
     }
 
     return (
         <div
-            className={`min-h-screen bg-gradient-to-br from-[#0c0906] via-[#1c120b] to-[#0f0b08] ${bodyFont.className}`}
+            className="min-h-screen bg-gradient-to-b from-[#1D1411] to-[#0F0B09] font-body"
             style={wallTheme}
         >
             <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 <div className="flex flex-col sm:flex-row sm:items-end gap-4 mb-6">
                     <div>
-                        <div className={`${displayFont.className} text-3xl sm:text-4xl tracking-[0.25em] text-white`}>
+                        <div className="font-display text-3xl sm:text-4xl tracking-[0.12em] text-white">
                             Shared Walls
                         </div>
                         <div className="text-xs text-white/50 uppercase tracking-[0.25em]">
@@ -157,7 +146,7 @@ export default function SharedWallsPage() {
                                 >
                                     <div className="flex items-start justify-between gap-3 mb-3">
                                         <div className="min-w-0">
-                                            <div className={`${displayFont.className} text-base tracking-[0.2em] text-white truncate`}>
+                                            <div className="font-display text-base tracking-[0.2em] text-white truncate">
                                                 {displayName}
                                             </div>
                                             {wall.title ? (
