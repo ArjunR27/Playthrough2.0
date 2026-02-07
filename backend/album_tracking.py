@@ -28,7 +28,7 @@ celery.conf.beat_schedule = {
     },
 }
 
-def _get_playthrough_user_id(spotify_user_id: str):
+def _get_playthrough_user_id(spotify_user_id):
     resp = (
         supabase.table("users")
         .select("playthrough_user_id")
