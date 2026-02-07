@@ -1,28 +1,16 @@
 "use client"
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { API_BASE } from "../lib/api";
-
-type SharedWallItem = {
-    album_id: string;
-    album_name?: string | null;
-    artist_name?: string | null;
-    album_image?: string | null;
-};
-
-type SharedWall = {
-    wall: {
-        wall_id: string;
-        owner_id: string;
-        owner_display_name?: string | null;
-        title?: string | null;
-        created_at?: string | null;
-        is_owner?: boolean;
-    };
-    items: SharedWallItem[];
-};
+import {
+    loadSharedWallsCache,
+    primeSharedWallDetails,
+    saveSharedWallDetail,
+    saveSharedWallsCache,
+    type SharedWall,
+} from "./cache";
 
 const wallTheme = {
     "--wall-wood-1": "#2f1d12",
@@ -36,12 +24,27 @@ export default function SharedWallsPage() {
     const [walls, setWalls] = useState<SharedWall[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [cacheNotice, setCacheNotice] = useState<string | null>(null);
+    const hadCacheRef = useRef(false);
 
     const redirectToLogin = async (res: Response) => {
         const body = await res.json().catch(() => ({}));
         const loginUrl = body?.login_url ?? `${API_BASE}/`;
         window.location.href = loginUrl;
     };
+
+    useEffect(() => {
+        const cached = loadSharedWallsCache();
+        if (cached?.walls?.length) {
+            hadCacheRef.current = true;
+            setWalls(cached.walls);
+            setLoading(false);
+            setCacheNotice(cached.isFresh ? null : "Refreshing cached walls...");
+            primeSharedWallDetails(cached.walls, cached.updatedAt);
+        } else {
+            setLoading(true);
+        }
+    }, []);
 
     useEffect(() => {
         async function fetchSharedWalls() {
@@ -65,8 +68,14 @@ export default function SharedWallsPage() {
                 const data = await res.json();
                 const nextWalls = Array.isArray(data?.walls) ? data.walls : [];
                 setWalls(nextWalls);
+                saveSharedWallsCache(nextWalls);
+                setCacheNotice(null);
             } catch (err) {
-                setError(err instanceof Error ? err.message : "An error occurred");
+                if (!hadCacheRef.current) {
+                    setError(err instanceof Error ? err.message : "An error occurred");
+                } else {
+                    setCacheNotice("Unable to refresh. Showing cached walls.");
+                }
             } finally {
                 if (didRedirect) {
                     return;
@@ -96,7 +105,7 @@ export default function SharedWallsPage() {
         );
     }
 
-    if (error) {
+    if (error && walls.length === 0) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#1D1411] to-[#0F0B09]">
                 <div className="font-body text-red-300 text-lg">Error: {error}</div>
@@ -129,6 +138,12 @@ export default function SharedWallsPage() {
                     </div>
                 </div>
 
+                {cacheNotice ? (
+                    <div className="mb-4 text-[11px] uppercase tracking-[0.2em] text-white/50">
+                        {cacheNotice}
+                    </div>
+                ) : null}
+
                 {visibleWalls.length === 0 ? (
                     <div className="text-white/70 text-sm bg-black/30 rounded-2xl px-6 py-4">
                         No shared walls yet.
@@ -140,9 +155,11 @@ export default function SharedWallsPage() {
                             const items = entry.items ?? [];
                             const displayName = wall.owner_display_name || wall.owner_id;
                             return (
-                                <div
+                                <Link
                                     key={wall.wall_id}
-                                    className="rounded-2xl border border-white/10 bg-black/30 p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+                                    href={`/shared_walls/${wall.wall_id}`}
+                                    onClick={() => saveSharedWallDetail(entry)}
+                                    className="group block rounded-2xl border border-white/10 bg-black/30 p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)] hover:border-white/30 hover:bg-black/40 transition-colors"
                                 >
                                     <div className="flex items-start justify-between gap-3 mb-3">
                                         <div className="min-w-0">
@@ -197,7 +214,11 @@ export default function SharedWallsPage() {
                                             ) : null}
                                         </>
                                     )}
-                                </div>
+
+                                    <div className="mt-4 text-[10px] uppercase tracking-[0.3em] text-white/40 group-hover:text-white/70 transition-colors">
+                                        View Wall
+                                    </div>
+                                </Link>
                             );
                         })}
                     </div>

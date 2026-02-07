@@ -22,7 +22,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${displayFont.variable} ${bodyFont.variable}`}>
-      <body className="font-body">
+      <body className={`${bodyFont.className} ${displayFont.variable} ${bodyFont.variable} font-body`}>
         <AuthProvider>
           <Navbar />
           {children}
