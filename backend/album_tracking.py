@@ -28,6 +28,18 @@ celery.conf.beat_schedule = {
     },
 }
 
+def _get_playthrough_user_id(spotify_user_id):
+    resp = (
+        supabase.table("users")
+        .select("playthrough_user_id")
+        .eq("user_id", spotify_user_id)
+        .limit(1)
+        .execute()
+    )
+    if not resp.data:
+        return None
+    return resp.data[0].get("playthrough_user_id")
+
 # this needs to be improved, with more users this will still update one at a time?
 # maybe have to thread each user or something along those lines
 def track_all_users_recently_listened():
@@ -38,6 +50,10 @@ def track_all_users_recently_listened():
 # get 50 tracks within last 1 hour
 def get_recently_listened(user_id):
     decrypted_token = get_valid_token(user_id)
+    playthrough_user_id = _get_playthrough_user_id(user_id)
+    if not playthrough_user_id:
+        print(f"Missing playthrough_user_id for user_id {user_id}")
+        return
     sp = spotipy.Spotify(auth=decrypted_token)
     known_artist_ids: set[str] = set()
 
@@ -100,6 +116,7 @@ def get_recently_listened(user_id):
 
         supabase.table('listened_tracks').upsert({
             'user_id': user_id,
+            'playthrough_user_id': playthrough_user_id,
             'track_id': track_id,
             'track_name': track_name,
             'album_type': album_type,

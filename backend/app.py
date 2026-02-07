@@ -76,11 +76,30 @@ def _get_primary_wall(owner_id):
         return None
     return resp.data[0]
 
+def _get_playthrough_user_id(spotify_user_id):
+    resp = (
+        supabase.table("users")
+        .select("playthrough_user_id")
+        .eq("user_id", spotify_user_id)
+        .limit(1)
+        .execute()
+    )
+    if not resp.data:
+        return None
+    return resp.data[0].get("playthrough_user_id")
+
 def _get_or_create_primary_wall(owner_id, title=None):
     wall = _get_primary_wall(owner_id)
     if wall:
         return wall
-    payload = {"owner_id": owner_id}
+    playthrough_user_id = _get_playthrough_user_id(owner_id)
+    if not playthrough_user_id:
+        print(f"Missing playthrough_user_id for owner_id {owner_id}")
+        return None
+    payload = {
+        "owner_id": owner_id,
+        "playthrough_user_id": playthrough_user_id,
+    }
     if title is not None:
         payload["title"] = title
     try:
