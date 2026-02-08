@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 
 
-def load_environment() -> None:
+def load_environment():
     app_env = os.getenv("APP_ENV", "development").lower()
     env_filename = ".env.production" if app_env == "production" else ".env.local"
 
