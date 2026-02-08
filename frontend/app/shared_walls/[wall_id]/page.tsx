@@ -51,10 +51,11 @@ export default function SharedWallDetailPage() {
             return;
         }
 
+        const wallIdValue = resolvedWallId;
         hadCacheRef.current = false;
         setError(null);
 
-        const cached = loadSharedWallDetail(resolvedWallId);
+        const cached = loadSharedWallDetail(wallIdValue);
         if (cached?.wall) {
             hadCacheRef.current = true;
             setWall(cached.wall);
@@ -71,7 +72,7 @@ export default function SharedWallDetailPage() {
         async function fetchWall() {
             let didRedirect = false;
             try {
-                const res = await fetch(`${API_BASE}/api/walls?wall_id=${encodeURIComponent(resolvedWallId)}`, {
+                const res = await fetch(`${API_BASE}/api/walls?wall_id=${encodeURIComponent(wallIdValue)}`, {
                     cache: "no-store",
                     credentials: "include",
                 });
