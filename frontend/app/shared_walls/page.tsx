@@ -159,63 +159,63 @@ export default function SharedWallsPage() {
                                     key={wall.wall_id}
                                     href={`/shared_walls/${wall.wall_id}`}
                                     onClick={() => saveSharedWallDetail(entry)}
-                                    className="group block rounded-2xl border border-white/10 bg-black/30 p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)] hover:border-white/30 hover:bg-black/40 transition-colors"
+                                    className="group block rounded-2xl border border-white/10 bg-black/30 p-3 shadow-[0_12px_40px_rgba(0,0,0,0.45)] hover:border-white/30 hover:bg-black/40 transition-colors min-h-[240px] flex flex-col"
                                 >
                                     <div className="flex items-start justify-between gap-3 mb-3">
                                         <div className="min-w-0">
                                             <div className="font-display text-base tracking-[0.2em] text-white truncate">
                                                 {displayName}
                                             </div>
-                                            {wall.title ? (
-                                                <div className="text-xs text-white/60 truncate">{wall.title}</div>
-                                            ) : null}
+                                            <div className="text-xs text-white/60 truncate h-4">
+                                                {wall.title ?? ""}
+                                            </div>
                                         </div>
                                         <div className="text-[10px] text-white/50 uppercase tracking-[0.2em]">
                                             {items.length} albums
                                         </div>
                                     </div>
 
-                                    {items.length === 0 ? (
-                                        <div className="text-white/40 text-xs bg-black/20 rounded-xl px-3 py-2">
-                                            Empty wall
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="grid grid-cols-4 gap-2">
-                                                {items.slice(0, 16).map((item) => (
-                                                    <div
-                                                        key={`${wall.wall_id}-${item.album_id}`}
-                                                        className="relative w-14 h-14 rounded-full bg-gradient-to-br from-[#111] via-[#1a1a1a] to-[#050505] border border-white/10 overflow-hidden"
-                                                    >
-                                                        {item.album_image ? (
-                                                            <Image
-                                                                src={item.album_image}
-                                                                alt={item.album_name || "album"}
-                                                                fill
-                                                                sizes="56px"
-                                                                className="object-cover"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-white/30 text-xs">
-                                                                note
-                                                            </div>
-                                                        )}
-                                                        <div
-                                                            className="absolute left-1/2 top-1/2 w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2"
-                                                            style={{ backgroundColor: "var(--wall-gold)" }}
-                                                        />
-                                                    </div>
-                                                ))}
+                                    <div className="flex-1">
+                                        {items.length === 0 ? (
+                                            <div className="text-white/40 text-xs bg-black/20 rounded-xl px-3 py-2">
+                                                Empty wall
                                             </div>
-                                            {items.length > 16 ? (
-                                                <div className="mt-3 text-[11px] text-white/50 uppercase tracking-[0.2em]">
-                                                    +{items.length - 16} more
+                                        ) : (
+                                            <>
+                                                <div className="grid grid-cols-4 gap-2">
+                                                    {items.slice(0, 8).map((item) => (
+                                                        <div
+                                                            key={`${wall.wall_id}-${item.album_id}`}
+                                                            className="relative w-14 h-14 rounded-full bg-gradient-to-br from-[#111] via-[#1a1a1a] to-[#050505] border border-white/10 overflow-hidden"
+                                                        >
+                                                            {item.album_image ? (
+                                                                <Image
+                                                                    src={item.album_image}
+                                                                    alt={item.album_name || "album"}
+                                                                    fill
+                                                                    sizes="56px"
+                                                                    className="object-cover"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-white/30 text-xs">
+                                                                    note
+                                                                </div>
+                                                            )}
+                                                            <div
+                                                                className="absolute left-1/2 top-1/2 w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2"
+                                                                style={{ backgroundColor: "var(--wall-gold)" }}
+                                                            />
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            ) : null}
-                                        </>
-                                    )}
+                                                <div className="mt-3 text-[11px] text-white/50 uppercase tracking-[0.2em] h-4">
+                                                    {items.length > 8 ? `+${items.length - 8} more` : ""}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
 
-                                    <div className="mt-4 text-[10px] uppercase tracking-[0.3em] text-white/40 group-hover:text-white/70 transition-colors">
+                                    <div className="mt-auto pt0 text-[10px] uppercase tracking-[0.3em] text-white/40 group-hover:text-white/70 transition-colors">
                                         View Wall
                                     </div>
                                 </Link>

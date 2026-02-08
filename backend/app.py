@@ -133,6 +133,7 @@ def _get_wall_items(wall_id):
         )
         .eq("wall_id", wall_id)
         .order("added_at", desc=False)
+        .order("album_id", desc=False)
         .execute()
     )
 
@@ -167,6 +168,7 @@ def _get_wall_items_for_walls(wall_ids):
         )
         .in_("wall_id", wall_ids)
         .order("added_at", desc=False)
+        .order("album_id", desc=False)
         .execute()
     )
 
