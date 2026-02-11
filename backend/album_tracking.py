@@ -1,4 +1,5 @@
 import spotipy
+from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyOAuth
 from env import load_environment
 from supabase import create_client, Client
@@ -49,8 +50,20 @@ def track_all_users_recently_listened():
     for user in users:
         user_id = user["user_id"]
         print(f"[album_tracking] user_id={user_id} starting")
-        get_recently_listened(user_id)
-        print(f"[album_tracking] user_id={user_id} done")
+        try:
+            get_recently_listened(user_id)
+            print(f"[album_tracking] user_id={user_id} done")
+        except SpotifyException as exc:
+            status = getattr(exc, "http_status", None)
+            if status == 403:
+                print(
+                    "[album_tracking] user_id=%s skipped (403 not registered in Spotify app)"
+                    % user_id
+                )
+                continue
+            print(f"[album_tracking] user_id={user_id} Spotify error: {exc}")
+        except Exception as exc:
+            print(f"[album_tracking] user_id={user_id} unexpected error: {exc}")
     print("[album_tracking] Finished recent listens run")
 
 # get 50 tracks within last 1 hour
