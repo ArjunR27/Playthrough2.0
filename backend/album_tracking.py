@@ -44,8 +44,14 @@ def _get_playthrough_user_id(spotify_user_id):
 # maybe have to thread each user or something along those lines
 def track_all_users_recently_listened():
     users_response = supabase.table('users').select('user_id').execute()
-    for user in users_response.data:
-        get_recently_listened(user["user_id"])
+    users = users_response.data or []
+    print(f"[album_tracking] Starting recent listens for {len(users)} user(s)")
+    for user in users:
+        user_id = user["user_id"]
+        print(f"[album_tracking] user_id={user_id} starting")
+        get_recently_listened(user_id)
+        print(f"[album_tracking] user_id={user_id} done")
+    print("[album_tracking] Finished recent listens run")
 
 # get 50 tracks within last 1 hour
 def get_recently_listened(user_id):
@@ -61,6 +67,9 @@ def get_recently_listened(user_id):
     recently_listened = sp.current_user_recently_played(limit=50, after=one_hour_ago)
 
     items = recently_listened["items"]
+    print(f"[album_tracking] user_id={user_id} recent_items={len(items)} since_ms={one_hour_ago}")
+    if not items:
+        print(f"[album_tracking] user_id={user_id} no recent listens found")
     for item in items:
         track_name = item["track"]["name"]
         track_id = item["track"]["id"]
@@ -84,6 +93,7 @@ def get_recently_listened(user_id):
             .execute()
         
         if not album_exists.data:
+            print(f"[album_tracking] inserting album album_id={album_id} album_name={album_name}")
             album_info = sp.album(album_id)
             supabase.table('albums').upsert({
                 'album_id': album_id,
@@ -107,6 +117,7 @@ def get_recently_listened(user_id):
          
         else:
             # ensure the current track exists even if the rest of the album was preloaded
+            print(f"[album_tracking] album exists album_id={album_id} ensuring track_id={track_id}")
             supabase.table("album_tracks").upsert({
                 "album_id": album_id,
                 "track_id": track_id,
@@ -114,6 +125,7 @@ def get_recently_listened(user_id):
                 "track_number": item["track"]["track_number"],
             }).execute()
 
+        print(f"[album_tracking] upsert listened_tracks track_id={track_id} track_name={track_name} album_name={album_name}")
         supabase.table('listened_tracks').upsert({
             'user_id': user_id,
             'playthrough_user_id': playthrough_user_id,
