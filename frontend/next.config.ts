@@ -4,7 +4,7 @@ const apiProxyTarget = process.env.API_PROXY_TARGET;
 
 const nextConfig: NextConfig = {
   images: {
-    domains: ["i.scdn.co"],
+    domains: ["i.scdn.co", "lastfm.freetls.fastly.net"],
   },
   async rewrites() {
     if (!apiProxyTarget) {

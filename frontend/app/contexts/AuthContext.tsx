@@ -6,12 +6,13 @@ import { API_BASE } from '../lib/api';
 type User = {
     id: string;
     display_name: string | null;
+    provider: string;
 }
 
 type AuthContextType = {
     isAuthenticated: boolean | null; // null = checking, true/false = known state
     user: User | null;
-    login: () => Promise<void>;
+    login: (provider?: "spotify" | "lastfm", username?: string) => Promise<void>;
     checkAuth: () => Promise<void>;
 }
 
@@ -50,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser({
                     id: data?.id ?? "",
                     display_name: data?.display_name ?? null,
+                    provider: data?.provider ?? "unknown",
                 });
             } catch (err) {
                 setIsAuthenticated(false);
@@ -65,10 +67,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
-    const login = async () => {
+    const login = async (provider: "spotify" | "lastfm" = "spotify", username?: string) => {
         try {
             const res = await fetch(`${API_BASE}/api/auth/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 credentials: 'include',
+                body: JSON.stringify({
+                    provider,
+                    username,
+                }),
             });
             const data = await res.json();
             window.location.href = data.login_url;

@@ -19,7 +19,7 @@ type Album = {
 }
 
 type Track = {
-    track_id: string;
+    track_id?: string;
     track_name: string;
     track_number: number;
     is_listened: boolean;
@@ -311,7 +311,7 @@ export default function WallPage() {
                                 <div className="space-y-2">
                                     {tracks.map((track) => (
                                         <div
-                                            key={track.track_id}
+                                            key={track.track_id ?? `${selectedAlbum?.album_id ?? 'album'}-${track.track_number}`}
                                             className={`flex items-center gap-3 sm:gap-4 p-3 rounded-lg transition-colors ${
                                                 track.is_listened
                                                     ? 'bg-[#1DB954]/20 hover:bg-[#1DB954]/30'
