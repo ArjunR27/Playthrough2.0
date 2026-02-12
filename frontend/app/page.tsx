@@ -110,6 +110,7 @@ export default function HomePage() {
                     Track your album listening progress and discover your music journey
                 </p>
                 <div className="flex flex-col items-center gap-6">
+                    <p style={{color: "#d63a4a"}}> Spotify Login: Limited Access</p>
                     <button
                         onClick={startSpotifyLogin}
                         disabled={isSubmitting}
@@ -118,7 +119,7 @@ export default function HomePage() {
                         Continue with Spotify
                     </button>
 
-                    <div className="w-full max-w-sm flex flex-col gap-3">
+                    <div className="flex flex-col items-center gap-6">
                         <button
                             onClick={startLastfmLogin}
                             disabled={isSubmitting}
