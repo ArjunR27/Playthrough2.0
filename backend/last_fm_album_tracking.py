@@ -127,7 +127,7 @@ def track_all_users_recently_listened_sync():
 
 def get_recently_listened(username):
     """Get tracks listened to in the last hour for a specific user"""
-    one_hour_ago = int(time.time() - 3600)
+    one_hour_ago = int(time.time() - 1500)
     
     try:
         payload = _lastfm_get({

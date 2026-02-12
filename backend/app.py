@@ -694,7 +694,7 @@ def recently_listened():
             return _unauthorized_response()
 
         sp = spotipy.Spotify(auth=decrypted_token)
-        one_hour_ago = int((time.time() - 3600) * 1000)
+        one_hour_ago = int((time.time() - 1500) * 1000)
         recently_listened = sp.current_user_recently_played(limit=50, after=one_hour_ago)
         items = recently_listened["items"]
         recents = []
