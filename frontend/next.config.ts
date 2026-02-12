@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
         destination: `${apiProxyTarget}/api/auth/callback`,
       },
       {
+        source: "/api/auth/lastfm/callback",
+        destination: `${apiProxyTarget}/api/auth/lastfm/callback`,
+      },
+      {
         source: "/api/:path*",
         destination: `${apiProxyTarget}/:path*`,
       },
