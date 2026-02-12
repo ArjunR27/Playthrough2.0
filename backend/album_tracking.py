@@ -57,11 +57,11 @@ def get_recently_listened(user_id):
     sp = spotipy.Spotify(auth=decrypted_token)
     known_artist_ids: set[str] = set()
 
-    one_hour_ago = int((time.time() - 3600) * 1000)
-    recently_listened = sp.current_user_recently_played(limit=50, after=one_hour_ago)
+    twenty_five_minutes = int((time.time() - 1500) * 1000)
+    recently_listened = sp.current_user_recently_played(limit=50, after=twenty_five_minutes)
 
     items = recently_listened["items"]
-    print(f"[album_tracking] user_id={user_id} recent_items={len(items)} since_ms={one_hour_ago}")
+    print(f"[album_tracking] user_id={user_id} recent_items={len(items)} since_ms={twenty_five_minutes}")
     if not items:
         print(f"[album_tracking] user_id={user_id} no recent listens found")
     for item in items:
