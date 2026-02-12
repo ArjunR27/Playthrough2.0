@@ -268,6 +268,23 @@ def _fetch_lastfm_album_meta(album_keys):
         meta[row.get("album_key")] = row
     return meta
 
+def _fetch_spotify_album_meta(album_ids):
+    if not album_ids:
+        return {}
+    resp = (
+        supabase.table("albums")
+        .select(
+            "album_id, album_name, artist_name, album_type, "
+            "album_image, album_image_height, album_image_width, total_tracks"
+        )
+        .in_("album_id", album_ids)
+        .execute()
+    )
+    meta = {}
+    for row in resp.data or []:
+        meta[row.get("album_id")] = row
+    return meta
+
 def _pick_lastfm_album_image(album):
     if not album:
         return None
@@ -281,11 +298,7 @@ def _get_wall_items(wall_id, provider):
     if provider == "spotify":
         items_resp = (
             supabase.table("wall_items")
-            .select(
-                "album_id, added_at, "
-                "albums(album_id, album_name, artist_name, album_type, "
-                "album_image, album_image_height, album_image_width, total_tracks)"
-            )
+            .select("album_id, added_at")
             .eq("wall_id", wall_id)
             .eq("provider", provider)
             .order("added_at", desc=False)
@@ -293,11 +306,11 @@ def _get_wall_items(wall_id, provider):
             .execute()
         )
 
+        album_ids = [row.get("album_id") for row in items_resp.data or [] if row.get("album_id")]
+        album_meta = _fetch_spotify_album_meta(list(dict.fromkeys(album_ids)))
         items = []
         for row in items_resp.data or []:
-            album = row.get("albums") or {}
-            if isinstance(album, list):
-                album = album[0] if album else {}
+            album = album_meta.get(row.get("album_id")) or {}
             items.append({
                 "album_id": row.get("album_id"),
                 "added_at": row.get("added_at"),
@@ -347,11 +360,7 @@ def _get_wall_items_for_walls(wall_ids, provider):
     if provider == "spotify":
         items_resp = (
             supabase.table("wall_items")
-            .select(
-                "wall_id, album_id, added_at, "
-                "albums(album_id, album_name, artist_name, album_type, "
-                "album_image, album_image_height, album_image_width, total_tracks)"
-            )
+            .select("wall_id, album_id, added_at")
             .in_("wall_id", wall_ids)
             .eq("provider", provider)
             .order("added_at", desc=False)
@@ -359,11 +368,11 @@ def _get_wall_items_for_walls(wall_ids, provider):
             .execute()
         )
 
+        album_ids = [row.get("album_id") for row in items_resp.data or [] if row.get("album_id")]
+        album_meta = _fetch_spotify_album_meta(list(dict.fromkeys(album_ids)))
         grouped = {wall_id: [] for wall_id in wall_ids}
         for row in items_resp.data or []:
-            album = row.get("albums") or {}
-            if isinstance(album, list):
-                album = album[0] if album else {}
+            album = album_meta.get(row.get("album_id")) or {}
             grouped.setdefault(row.get("wall_id"), []).append({
                 "album_id": row.get("album_id"),
                 "added_at": row.get("added_at"),
@@ -408,31 +417,31 @@ def _get_wall_items_for_walls(wall_ids, provider):
     return grouped
 
 def _build_shared_walls_response(user_id, provider):
-    if provider == "spotify":
-        walls_resp = (
-            supabase.table("walls")
-            .select("wall_id, owner_id, title, created_at, users(display_name)")
-            .eq("provider", provider)
-            .order("created_at", desc=False)
-            .execute()
-        )
-    else:
-        walls_resp = (
-            supabase.table("walls")
-            .select("wall_id, owner_id, title, created_at")
-            .eq("provider", provider)
-            .order("created_at", desc=False)
-            .execute()
-        )
+    walls_resp = (
+        supabase.table("walls")
+        .select("wall_id, owner_id, title, created_at")
+        .eq("provider", provider)
+        .order("created_at", desc=False)
+        .execute()
+    )
 
     walls_data = walls_resp.data or []
     wall_ids = [wall.get("wall_id") for wall in walls_data if wall.get("wall_id")]
     items_by_wall = _get_wall_items_for_walls(wall_ids, provider)
 
     display_name_by_owner = {}
-    if provider == "lastfm":
-        owner_ids = [wall.get("owner_id") for wall in walls_data if wall.get("owner_id")]
-        if owner_ids:
+    owner_ids = [wall.get("owner_id") for wall in walls_data if wall.get("owner_id")]
+    if owner_ids:
+        if provider == "spotify":
+            owner_resp = (
+                supabase.table("users")
+                .select("user_id, display_name")
+                .in_("user_id", owner_ids)
+                .execute()
+            )
+            for row in owner_resp.data or []:
+                display_name_by_owner[row.get("user_id")] = row.get("display_name")
+        else:
             owner_resp = (
                 supabase.table("last_fm_users")
                 .select("lastfm_username, display_name")
@@ -444,14 +453,7 @@ def _build_shared_walls_response(user_id, provider):
 
     output = []
     for wall in walls_data:
-        owner_display_name = None
-        if provider == "spotify":
-            owner_meta = wall.get("users") or {}
-            if isinstance(owner_meta, list):
-                owner_meta = owner_meta[0] if owner_meta else {}
-            owner_display_name = owner_meta.get("display_name")
-        else:
-            owner_display_name = display_name_by_owner.get(wall.get("owner_id"))
+        owner_display_name = display_name_by_owner.get(wall.get("owner_id"))
 
         output.append({
             "wall": {

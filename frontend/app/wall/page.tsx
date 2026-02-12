@@ -517,21 +517,29 @@ export default function DashboardPage() {
         setIsSaving(true);
         setSaveError(null);
         const albumIds = Array.from(new Set(wallItems.map((item) => item.album_id)));
+        let activeWallId = wallId;
         const currentAlbumSet = new Set(albumIds);
         const hasRemoved = savedAlbumIds.some((albumId) => !currentAlbumSet.has(albumId));
 
         try {
             if (albumIds.length === 0) {
-                if (wallId) {
+                if (activeWallId) {
                     const res = await fetch(`${API_BASE}/api/walls/items`, {
                         method: "DELETE",
                         headers: { "Content-Type": "application/json" },
                         credentials: "include",
-                        body: JSON.stringify({ wall_id: wallId }),
+                        body: JSON.stringify({ wall_id: activeWallId }),
                     });
 
                     if (res.status === 401) {
                         await redirectToLogin(res);
+                        return;
+                    }
+
+                    if (res.status === 404) {
+                        persistWallId(null);
+                        setSavedAlbumIds([]);
+                        saveWallCache(null, []);
                         return;
                     }
 
@@ -541,16 +549,16 @@ export default function DashboardPage() {
                 }
 
                 setSavedAlbumIds([]);
-                saveWallCache(wallId, []);
+                saveWallCache(activeWallId, []);
                 return;
             }
 
-            if (wallId && hasRemoved) {
+            if (activeWallId && hasRemoved) {
                 const res = await fetch(`${API_BASE}/api/walls/items`, {
                     method: "DELETE",
                     headers: { "Content-Type": "application/json" },
                     credentials: "include",
-                    body: JSON.stringify({ wall_id: wallId }),
+                    body: JSON.stringify({ wall_id: activeWallId }),
                 });
 
                 if (res.status === 401) {
@@ -558,24 +566,41 @@ export default function DashboardPage() {
                     return;
                 }
 
-                if (!res.ok) {
+                if (res.status === 404) {
+                    persistWallId(null);
+                    activeWallId = null;
+                } else if (!res.ok) {
                     throw new Error("Failed to reset wall before saving");
                 }
             }
 
-            const res = await fetch(`${API_BASE}/api/walls/items`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({
-                    album_ids: albumIds,
-                    wall_id: wallId ?? undefined,
-                }),
-            });
+            const sendSave = (targetWallId: string | null) =>
+                fetch(`${API_BASE}/api/walls/items`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({
+                        album_ids: albumIds,
+                        wall_id: targetWallId ?? undefined,
+                    }),
+                });
+
+            let res = await sendSave(activeWallId);
 
             if (res.status === 401) {
                 await redirectToLogin(res);
                 return;
+            }
+
+            if (res.status === 404 && activeWallId) {
+                persistWallId(null);
+                activeWallId = null;
+                res = await sendSave(null);
+
+                if (res.status === 401) {
+                    await redirectToLogin(res);
+                    return;
+                }
             }
 
             if (!res.ok) {
@@ -585,7 +610,7 @@ export default function DashboardPage() {
             }
 
             const body = await res.json().catch(() => ({}));
-            const nextWallId = body?.wall_id ?? wallId ?? null;
+            const nextWallId = body?.wall_id ?? activeWallId ?? null;
             if (body?.wall_id) {
                 persistWallId(body.wall_id);
             }
