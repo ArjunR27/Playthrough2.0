@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/auth/callback",
-        destination: `${apiProxyTarget}/api/auth/callback`,
+        destination: `${apiProxyTarget}/auth/callback`,
       },
       {
         source: "/api/auth/lastfm/callback",
