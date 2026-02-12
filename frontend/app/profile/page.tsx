@@ -8,14 +8,17 @@ import { API_BASE } from '../lib/api';
 import { authedFetcher, type FetcherError } from '../lib/swr';
 
 type ProfileData = {
+    provider: "spotify" | "lastfm";
     id: string;
     display_name: string | null;
-    email: string | null;
+    email?: string | null;
     images: Array<{ url: string; height: number | null; width: number | null }>;
-    followers: number;
-    external_urls: { spotify?: string };
-    country: string | null;
-    product: string | null;
+    followers?: number;
+    external_urls?: { spotify?: string; lastfm?: string };
+    country?: string | null;
+    product?: string | null;
+    playcount?: number | string | null;
+    registered_at?: string | null;
 }
 
 export default function ProfilePage() {
@@ -87,6 +90,7 @@ export default function ProfilePage() {
     }
 
     const profileImage = profile.images && profile.images.length > 0 ? profile.images[0].url : null;
+    const isSpotify = profile.provider === "spotify";
 
     return (
         <div className="min-h-screen p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-[#191414] to-[#1DB954]">
@@ -122,9 +126,9 @@ export default function ProfilePage() {
                                 {profile.display_name || 'No name'}
                             </h2>
                             
-                            {profile.email && (
-                                <p className="text-white/70 mb-4">{profile.email}</p>
-                            )}
+                                {isSpotify && profile.email && (
+                                    <p className="text-white/70 mb-4">{profile.email}</p>
+                                )}
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
                                 <div className="bg-black/30 rounded-lg p-4">
@@ -132,10 +136,19 @@ export default function ProfilePage() {
                                     <p className="text-white font-semibold">{profile.id}</p>
                                 </div>
 
-                                <div className="bg-black/30 rounded-lg p-4">
-                                    <p className="text-white/60 text-sm mb-1">Followers</p>
-                                    <p className="text-white font-semibold">{profile.followers.toLocaleString()}</p>
-                                </div>
+                                {isSpotify && profile.followers !== undefined && (
+                                    <div className="bg-black/30 rounded-lg p-4">
+                                        <p className="text-white/60 text-sm mb-1">Followers</p>
+                                        <p className="text-white font-semibold">{profile.followers.toLocaleString()}</p>
+                                    </div>
+                                )}
+
+                                {!isSpotify && profile.playcount !== undefined && (
+                                    <div className="bg-black/30 rounded-lg p-4">
+                                        <p className="text-white/60 text-sm mb-1">Playcount</p>
+                                        <p className="text-white font-semibold">{profile.playcount}</p>
+                                    </div>
+                                )}
 
                                 {profile.country && (
                                     <div className="bg-black/30 rounded-lg p-4">
@@ -144,7 +157,7 @@ export default function ProfilePage() {
                                     </div>
                                 )}
 
-                                {profile.product && (
+                                {isSpotify && profile.product && (
                                     <div className="bg-black/30 rounded-lg p-4">
                                         <p className="text-white/60 text-sm mb-1">Subscription</p>
                                         <p className="text-white font-semibold capitalize">{profile.product}</p>
@@ -161,6 +174,16 @@ export default function ProfilePage() {
                                         className="inline-flex items-center justify-center text-[11px] sm:text-xs uppercase tracking-widest px-5 py-2.5 sm:px-6 sm:py-3 rounded-full border border-[#1DB954]/60 text-[#1DB954] hover:border-[#1DB954] hover:text-[#1ed760] transition-colors text-center"
                                     >
                                         View on Spotify
+                                    </a>
+                                )}
+                                {profile.external_urls?.lastfm && (
+                                    <a
+                                        href={profile.external_urls.lastfm}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center justify-center text-[11px] sm:text-xs uppercase tracking-widest px-5 py-2.5 sm:px-6 sm:py-3 rounded-full border border-red-300/40 text-red-200 hover:border-red-200 hover:text-red-100 transition-colors text-center"
+                                    >
+                                        View on Last.fm
                                     </a>
                                 )}
                                 <button

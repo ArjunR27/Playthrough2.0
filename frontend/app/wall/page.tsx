@@ -316,10 +316,8 @@ export default function DashboardPage() {
                 const data = await res.json().catch(() => ({}));
                 const wall = data?.wall;
                 const items = Array.isArray(data?.items) ? data.items : [];
-                if (wall?.wall_id) {
-                    persistWallId(wall.wall_id);
-                }
-                const nextWallId = wall?.wall_id ?? (items.length > 0 ? wallId : null);
+                const nextWallId = wall?.wall_id ?? null;
+                persistWallId(nextWallId);
                 const nextSaved = items
                     .map((item: { album_id?: string | null }) => item.album_id)
                     .filter(Boolean) as string[];

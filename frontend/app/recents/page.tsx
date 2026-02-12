@@ -13,8 +13,8 @@ type Recent = {
     album_type: string,
     album_id: string,
     album_image: string,
-    album_image_height: number, 
-    album_image_width: number,
+    album_image_height: number | null,
+    album_image_width: number | null,
     played_at: string
 }
 
