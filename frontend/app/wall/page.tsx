@@ -194,7 +194,7 @@ export default function DashboardPage() {
         window.location.href = loginUrl;
     };
 
-    const persistWallId = (nextWallId: string) => {
+    const persistWallId = (nextWallId: string | null) => {
         setWallId(nextWallId);
     };
 
