@@ -1,4 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 import time
 
@@ -10,9 +9,6 @@ from env import load_environment
 
 load_environment()
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_API_KEY"))
-
-SPOTIFY_WORKERS = 4
-LASTFM_WORKERS = 4
 
 def _fetch_spotify_users():
     resp = supabase.table("users").select("user_id").execute()
@@ -28,17 +24,14 @@ def _run_spotify():
     started_at = time.time()
     successes = 0
     failures = 0
-    with ThreadPoolExecutor(max_workers=SPOTIFY_WORKERS) as executor:
-        futures = {executor.submit(get_recently_listened, user_id): user_id for user_id in users}
-        for future in as_completed(futures):
-            user_id = futures[future]
-            try:
-                future.result()
-                successes += 1
-                print(f"[cron][spotify] user_id={user_id} done")
-            except Exception as exc:
-                failures += 1
-                print(f"[cron][spotify] user_id={user_id} error: {exc}")
+    for user_id in users:
+        try:
+            get_recently_listened(user_id)
+            successes += 1
+            print(f"[cron][spotify] user_id={user_id} done")
+        except Exception as exc:
+            failures += 1
+            print(f"[cron][spotify] user_id={user_id} error: {exc}")
     duration = time.time() - started_at
     print(f"[cron][spotify] Completed in {duration:.2f}s (ok={successes}, failed={failures})")
 
@@ -48,17 +41,14 @@ def _run_lastfm():
     started_at = time.time()
     successes = 0
     failures = 0
-    with ThreadPoolExecutor(max_workers=LASTFM_WORKERS) as executor:
-        futures = {executor.submit(get_lastfm_recently_listened, username): username for username in users}
-        for future in as_completed(futures):
-            username = futures[future]
-            try:
-                future.result()
-                successes += 1
-                print(f"[cron][lastfm] username={username} done")
-            except Exception as exc:
-                failures += 1
-                print(f"[cron][lastfm] username={username} error: {exc}")
+    for username in users:
+        try:
+            get_lastfm_recently_listened(username)
+            successes += 1
+            print(f"[cron][lastfm] username={username} done")
+        except Exception as exc:
+            failures += 1
+            print(f"[cron][lastfm] username={username} error: {exc}")
     duration = time.time() - started_at
     print(f"[cron][lastfm] Completed in {duration:.2f}s (ok={successes}, failed={failures})")
 
@@ -66,13 +56,8 @@ print("Cron job starting...")
 print(f"Running task at {datetime.now()}")
 
 try:
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        futures = [
-            executor.submit(_run_spotify),
-            executor.submit(_run_lastfm),
-        ]
-        for future in as_completed(futures):
-            future.result()
+    _run_spotify()
+    _run_lastfm()
     print("Task completed successfully")
 except Exception as e:
     print(f"Error running task: {e}")
