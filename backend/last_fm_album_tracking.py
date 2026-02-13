@@ -272,6 +272,10 @@ def _insert_lastfm_album_tracks(album_key, tracks, artist_name, seen_artists=Non
 
     if track_rows:
         supabase.table("last_fm_album_tracks").upsert(track_rows).execute()
+    if local_artists:
+        supabase.table("last_fm_artists").upsert([
+            {"artist_name": artist} for artist in local_artists
+        ]).execute()
     if track_artist_rows:
         supabase.table('last_fm_track_artists').upsert(track_artist_rows).execute()
 
