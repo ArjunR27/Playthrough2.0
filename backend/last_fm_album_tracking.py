@@ -120,7 +120,7 @@ def _get_spotify_app_client():
         print(f"[last_fm_album_tracking] Failed to init Spotify client: {exc}")
         return None
 
-def _spotify_find_album(artist_name: str, album_name: str):
+def _spotify_find_album(artist_name, album_name):
     sp = _get_spotify_app_client()
     if not sp:
         return None
@@ -165,7 +165,7 @@ def _spotify_collect_tracks(sp, spotify_album):
         items.extend(tracks_data.get("items") or [])
     return items
 
-def _upsert_album_tracks_from_spotify(album_key: str, spotify_album: dict):
+def _upsert_album_tracks_from_spotify(album_key, spotify_album):
     if not spotify_album:
         return 0
     sp = _get_spotify_app_client()
@@ -207,14 +207,14 @@ def _upsert_album_tracks_from_spotify(album_key: str, spotify_album: dict):
 
     return len(sorted_tracks)
 
-def _get_album_track_count(album_key: str):
+def _get_album_track_count(album_key):
     resp = supabase.table("last_fm_album_tracks")\
         .select("track_number")\
         .eq("album_key", album_key)\
         .execute()
     return len(resp.data or [])
 
-def _insert_lastfm_album_tracks(album_key: str, tracks: list, artist_name: str):
+def _insert_lastfm_album_tracks(album_key, tracks, artist_name):
     for idx, track in enumerate(tracks, start=1):
         track_artist = track.get("artist", {})
         if isinstance(track_artist, dict):
@@ -499,7 +499,7 @@ def get_albums_completion(username):
     return output
 
 
-def get_album_tracks(username: str, album_key: str):
+def get_album_tracks(username, album_key):
     """Get all tracks for an album with listened status for a user"""
     resp = supabase.rpc(
         'get_last_fm_album_tracks',
