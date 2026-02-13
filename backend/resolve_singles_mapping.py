@@ -1,4 +1,7 @@
 from datetime import datetime
+import argparse
+
+from env import load_environment
 
 
 def _parse_spotify_release_date(release_date, precision):
@@ -23,6 +26,7 @@ def resolve_album_for_track(
     spotify_client,
     normalize_track_name,
     normalize_artist_name,
+    track_name_normalized=None,
 ):
     if not artist_name or not track_name:
         return None
@@ -53,7 +57,7 @@ def resolve_album_for_track(
         return None
 
     tracks = results.get("tracks", {}).get("items", []) if isinstance(results, dict) else []
-    target_track_norm = normalize_track_name(track_name)
+    target_track_norm = track_name_normalized or normalize_track_name(track_name)
     target_artist_norm = normalize_artist_name(artist_name)
 
     candidates = []
@@ -78,3 +82,37 @@ def resolve_album_for_track(
 
     candidates.sort(key=lambda item: item[0] or datetime.max)
     return candidates[0][1]
+
+
+def _cli():
+    parser = argparse.ArgumentParser(
+        description="Resolve a single track to an album using Last.fm + Spotify fallback."
+    )
+    parser.add_argument("--artist", required=True, help="Artist name")
+    parser.add_argument("--track", required=True, help="Track name")
+    args = parser.parse_args()
+
+    from last_fm_album_tracking import (
+        _lastfm_get,
+        _get_spotify_app_client,
+        _normalize_track_name,
+        _normalize_artist_name,
+    )
+
+    album = resolve_album_for_track(
+        args.artist,
+        args.track,
+        lastfm_get=_lastfm_get,
+        spotify_client=_get_spotify_app_client,
+        normalize_track_name=_normalize_track_name,
+        normalize_artist_name=_normalize_artist_name,
+    )
+    if album:
+        print(album)
+    else:
+        print("No confident album match found.")
+
+
+if __name__ == "__main__":
+    load_environment()
+    _cli()

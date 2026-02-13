@@ -383,12 +383,13 @@ def get_recently_listened(username):
             
         track_name = item.get("name", "")
         track_url = item.get("url", "")
+        track_name_normalized = _normalize_track_name(track_name)
         
         if not artist_name or not track_name:
             continue
 
         if not album_name:
-            cache_key = (_normalize_artist_name(artist_name), _normalize_track_name(track_name))
+            cache_key = (_normalize_artist_name(artist_name), track_name_normalized)
             if cache_key in track_album_cache:
                 album_name = track_album_cache[cache_key] or ""
             else:
@@ -399,6 +400,7 @@ def get_recently_listened(username):
                     spotify_client=_get_spotify_app_client,
                     normalize_track_name=_normalize_track_name,
                     normalize_artist_name=_normalize_artist_name,
+                    track_name_normalized=track_name_normalized,
                 )
                 track_album_cache[cache_key] = resolved_album
                 album_name = resolved_album or ""
@@ -564,7 +566,7 @@ def get_recently_listened(username):
             'lastfm_username': username,
             'played_at': played_at.isoformat(),
             'track_name': track_name,
-            'track_name_normalized': _normalize_track_name(track_name),
+            'track_name_normalized': track_name_normalized,
             'artist_name': artist_name,
             'album_name': album_name,
             'track_url': track_url,
