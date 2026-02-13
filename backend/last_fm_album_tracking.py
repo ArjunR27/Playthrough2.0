@@ -10,6 +10,7 @@ from spotipy.oauth2 import SpotifyClientCredentials
 from celery import Celery, group
 from celery.schedules import crontab
 from env import load_environment
+from resolve_singles_mapping import resolve_album_for_track
 from supabase import create_client, Client
 
 load_environment()
@@ -359,6 +360,7 @@ def get_recently_listened(username):
 
     seen_artists = set()
     album_cache = {}
+    track_album_cache = {}
 
     for item in items:
         # Skip currently playing tracks (they don't have a timestamp yet)
@@ -382,7 +384,26 @@ def get_recently_listened(username):
         track_name = item.get("name", "")
         track_url = item.get("url", "")
         
-        if not artist_name or not album_name or not track_name:
+        if not artist_name or not track_name:
+            continue
+
+        if not album_name:
+            cache_key = (_normalize_artist_name(artist_name), _normalize_track_name(track_name))
+            if cache_key in track_album_cache:
+                album_name = track_album_cache[cache_key] or ""
+            else:
+                resolved_album = resolve_album_for_track(
+                    artist_name,
+                    track_name,
+                    lastfm_get=_lastfm_get,
+                    spotify_client=_get_spotify_app_client,
+                    normalize_track_name=_normalize_track_name,
+                    normalize_artist_name=_normalize_artist_name,
+                )
+                track_album_cache[cache_key] = resolved_album
+                album_name = resolved_album or ""
+
+        if not album_name:
             continue
 
         album_key = _album_key(artist_name, album_name)
