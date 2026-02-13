@@ -188,6 +188,7 @@ def _upsert_album_tracks_from_spotify(album_key, spotify_album):
         ),
     )
 
+    track_rows = []
     for idx, track in enumerate(sorted_tracks, start=1):
         duration_ms = track.get("duration_ms")
         duration_sec = None
@@ -197,14 +198,17 @@ def _upsert_album_tracks_from_spotify(album_key, spotify_album):
             except (ValueError, TypeError):
                 duration_sec = None
 
-        supabase.table("last_fm_album_tracks").upsert({
+        track_rows.append({
             "album_key": album_key,
             "track_number": idx,
             "track_name": track.get("name", ""),
             "track_name_normalized": _normalize_track_name(track.get("name", "")),
             "track_url": None,
             "duration_sec": duration_sec,
-        }).execute()
+        })
+
+    if track_rows:
+        supabase.table("last_fm_album_tracks").upsert(track_rows).execute()
 
     supabase.table("last_fm_albums").update({
         "total_tracks": len(sorted_tracks)
@@ -213,13 +217,27 @@ def _upsert_album_tracks_from_spotify(album_key, spotify_album):
     return len(sorted_tracks)
 
 def _get_album_track_count(album_key):
+    try:
+        resp = (
+            supabase.table("last_fm_album_tracks")
+            .select("track_number", count="exact", head=True)
+            .eq("album_key", album_key)
+            .execute()
+        )
+        if getattr(resp, "count", None) is not None:
+            return resp.count or 0
+    except TypeError:
+        pass
     resp = supabase.table("last_fm_album_tracks")\
         .select("track_number")\
         .eq("album_key", album_key)\
         .execute()
     return len(resp.data or [])
 
-def _insert_lastfm_album_tracks(album_key, tracks, artist_name):
+def _insert_lastfm_album_tracks(album_key, tracks, artist_name, seen_artists=None):
+    track_rows = []
+    track_artist_rows = []
+    local_artists = set()
     for idx, track in enumerate(tracks, start=1):
         track_artist = track.get("artist", {})
         if isinstance(track_artist, dict):
@@ -234,25 +252,37 @@ def _insert_lastfm_album_tracks(album_key, tracks, artist_name):
             except (ValueError, TypeError):
                 duration = None
 
-        supabase.table("last_fm_album_tracks").upsert({
+        track_rows.append({
             "album_key": album_key,
             "track_number": idx,
             "track_name": track.get("name", ""),
             "track_name_normalized": _normalize_track_name(track.get("name", "")),
             "track_url": track.get("url"),
             "duration_sec": duration
-        }).execute()
+        })
 
-        _upsert_artist(track_artist_name)
-
-        supabase.table('last_fm_track_artists').upsert({
+        track_artist_rows.append({
             'album_key': album_key,
             'track_number': idx,
             'artist_name': track_artist_name,
             'artist_order': 1
-        }).execute()
+        })
+        if track_artist_name:
+            local_artists.add(track_artist_name)
 
-    return len(tracks)
+    if track_rows:
+        supabase.table("last_fm_album_tracks").upsert(track_rows).execute()
+    if track_artist_rows:
+        supabase.table('last_fm_track_artists').upsert(track_artist_rows).execute()
+
+    if seen_artists is None:
+        seen_artists = set()
+    for artist in local_artists:
+        if artist not in seen_artists:
+            _upsert_artist(artist)
+            seen_artists.add(artist)
+
+    return len(track_rows)
 
 def _upsert_artist(artist_name):
     """Fetch artist info from Last.fm and upsert to database"""
@@ -323,6 +353,9 @@ def get_recently_listened(username):
     if isinstance(items, dict):
         items = [items]
 
+    seen_artists = set()
+    album_cache = {}
+
     for item in items:
         # Skip currently playing tracks (they don't have a timestamp yet)
         if item.get("@attr", {}).get("nowplaying") == "true":
@@ -366,19 +399,33 @@ def get_recently_listened(username):
         images = item.get("image", [])
 
         # Ensure artist exists with full info
-        _upsert_artist(artist_name)
+        if artist_name not in seen_artists:
+            _upsert_artist(artist_name)
+            seen_artists.add(artist_name)
 
-        album_resp = supabase.table("last_fm_albums")\
-            .select('album_key, total_tracks')\
-            .eq('album_key', album_key)\
-            .limit(1)\
-            .execute()
-        album_row = album_resp.data[0] if album_resp.data else None
-        album_exists = bool(album_row)
-        total_tracks = album_row.get("total_tracks") if album_row else None
-        track_count = _get_album_track_count(album_key) if album_exists else 0
+        if album_key in album_cache:
+            album_state = album_cache[album_key]
+        else:
+            album_resp = supabase.table("last_fm_albums")\
+                .select('album_key, total_tracks')\
+                .eq('album_key', album_key)\
+                .limit(1)\
+                .execute()
+            album_row = album_resp.data[0] if album_resp.data else None
+            album_state = {
+                "exists": bool(album_row),
+                "total_tracks": album_row.get("total_tracks") if album_row else None,
+                "track_count": _get_album_track_count(album_key) if album_row else 0,
+                "backfill_attempted": False,
+            }
+            album_cache[album_key] = album_state
+
+        album_exists = album_state["exists"]
+        total_tracks = album_state["total_tracks"]
+        track_count = album_state["track_count"]
         
         if not album_exists:
+            album_state["backfill_attempted"] = True
             # Fetch full album info from Last.fm
             try:
                 album_info = _lastfm_get({
@@ -414,11 +461,16 @@ def get_recently_listened(username):
 
                 # Insert album tracks
                 if tracks:
-                    _insert_lastfm_album_tracks(album_key, tracks, artist_name)
+                    count = _insert_lastfm_album_tracks(album_key, tracks, artist_name, seen_artists)
+                    album_state["track_count"] = count
+                    album_state["total_tracks"] = count
                 else:
                     spotify_album = _spotify_find_album(artist_name, album_name)
                     if spotify_album:
-                        _upsert_album_tracks_from_spotify(album_key, spotify_album)
+                        count = _upsert_album_tracks_from_spotify(album_key, spotify_album)
+                        album_state["track_count"] = count
+                        album_state["total_tracks"] = count
+                album_state["exists"] = True
 
             except (requests.RequestException, ValueError) as e:
                 print(f"Error fetching album info for {album_name} by {artist_name}: {e}")
@@ -435,40 +487,52 @@ def get_recently_listened(username):
                 }).execute()
                 spotify_album = _spotify_find_album(artist_name, album_name)
                 if spotify_album:
-                    _upsert_album_tracks_from_spotify(album_key, spotify_album)
+                    count = _upsert_album_tracks_from_spotify(album_key, spotify_album)
+                    album_state["track_count"] = count
+                    album_state["total_tracks"] = count
+                album_state["exists"] = True
         else:
             if track_count == 0:
-                try:
-                    album_info = _lastfm_get({
-                        "method": "album.getinfo",
-                        "artist": artist_name,
-                        "album": album_name
-                    })
+                if not album_state.get("backfill_attempted"):
+                    album_state["backfill_attempted"] = True
+                    try:
+                        album_info = _lastfm_get({
+                            "method": "album.getinfo",
+                            "artist": artist_name,
+                            "album": album_name
+                        })
 
-                    album_data = album_info.get("album", {})
-                    tracks_data = album_data.get("tracks", {})
-                    tracks = tracks_data.get("track", [])
-                    if isinstance(tracks, dict):
-                        tracks = [tracks]
+                        album_data = album_info.get("album", {})
+                        tracks_data = album_data.get("tracks", {})
+                        tracks = tracks_data.get("track", [])
+                        if isinstance(tracks, dict):
+                            tracks = [tracks]
 
-                    if tracks:
-                        count = _insert_lastfm_album_tracks(album_key, tracks, artist_name)
-                        supabase.table('last_fm_albums').update({
-                            'total_tracks': count
-                        }).eq('album_key', album_key).execute()
-                    else:
+                        if tracks:
+                            count = _insert_lastfm_album_tracks(album_key, tracks, artist_name, seen_artists)
+                            supabase.table('last_fm_albums').update({
+                                'total_tracks': count
+                            }).eq('album_key', album_key).execute()
+                            album_state["track_count"] = count
+                            album_state["total_tracks"] = count
+                        else:
+                            spotify_album = _spotify_find_album(artist_name, album_name)
+                            if spotify_album:
+                                count = _upsert_album_tracks_from_spotify(album_key, spotify_album)
+                                album_state["track_count"] = count
+                                album_state["total_tracks"] = count
+                    except (requests.RequestException, ValueError) as e:
+                        print(f"Error fetching album info for {album_name} by {artist_name}: {e}")
                         spotify_album = _spotify_find_album(artist_name, album_name)
                         if spotify_album:
-                            _upsert_album_tracks_from_spotify(album_key, spotify_album)
-                except (requests.RequestException, ValueError) as e:
-                    print(f"Error fetching album info for {album_name} by {artist_name}: {e}")
-                    spotify_album = _spotify_find_album(artist_name, album_name)
-                    if spotify_album:
-                        _upsert_album_tracks_from_spotify(album_key, spotify_album)
+                            count = _upsert_album_tracks_from_spotify(album_key, spotify_album)
+                            album_state["track_count"] = count
+                            album_state["total_tracks"] = count
             elif not total_tracks or total_tracks == 0:
                 supabase.table('last_fm_albums').update({
                     'total_tracks': track_count
                 }).eq('album_key', album_key).execute()
+                album_state["total_tracks"] = track_count
 
         # Record listened track
         supabase.table('last_fm_listened_tracks').upsert({
@@ -683,6 +747,7 @@ def backfill_missing_lastfm_tracks(album_key=None, limit=None, sleep_s=0.25, dry
         return
 
     print(f"Found {len(rows)} albums to check for missing tracks.")
+    seen_artists = set()
     for album in rows:
         album_key = album.get("album_key")
         album_name = album.get("album_name")
@@ -710,7 +775,7 @@ def backfill_missing_lastfm_tracks(album_key=None, limit=None, sleep_s=0.25, dry
                 tracks = [tracks]
 
             if tracks:
-                count = _insert_lastfm_album_tracks(album_key, tracks, artist_name)
+                count = _insert_lastfm_album_tracks(album_key, tracks, artist_name, seen_artists)
                 supabase.table('last_fm_albums').update({
                     'total_tracks': count
                 }).eq('album_key', album_key).execute()
