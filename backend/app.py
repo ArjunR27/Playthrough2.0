@@ -294,6 +294,20 @@ def _pick_lastfm_album_image(album):
         or album.get("image_large")
     )
 
+def _filter_short_albums(albums, min_tracks=5):
+    if not albums:
+        return albums
+    filtered = []
+    for album in albums:
+        total = album.get("total")
+        if total is None:
+            total = album.get("total_tracks")
+        if total is None:
+            total = 0
+        if total >= min_tracks:
+            filtered.append(album)
+    return filtered
+
 def _get_wall_items(wall_id, provider):
     if provider == "spotify":
         items_resp = (
@@ -809,6 +823,7 @@ def album_tracker():
             albums = get_albums_completion_sorted(context["user_id"])
         else:
             albums = get_albums_completion(context["user_id"])
+        albums = _filter_short_albums(albums, min_tracks=5)
         return jsonify(albums)
 
     username = context.get("lastfm_username") or context.get("user_id")
@@ -832,6 +847,8 @@ def album_tracker():
             "percentage": album.get("percentage"),
             "album_image": _pick_lastfm_album_image(meta) or album.get("album_image"),
         })
+
+    output = _filter_short_albums(output, min_tracks=5)
 
     if filter_value == "unfinished":
         output = [entry for entry in output if (entry.get("percentage") or 0) < 1.0]
