@@ -2,6 +2,7 @@ import os
 import time
 import re
 import string
+import unicodedata
 from datetime import datetime, timezone
 import requests
 import spotipy
@@ -53,6 +54,16 @@ def _normalize_apostrophes(value):
         return value
     return value.replace("’", "'").replace("‘", "'")
 
+def _normalize_to_alnum(value):
+    if not value:
+        return None
+    value = _normalize_apostrophes(value)
+    value = unicodedata.normalize("NFKD", value)
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    value = "".join(ch for ch in value if ch.isalnum() or ch.isspace())
+    value = re.sub(r"\s+", " ", value).strip().lower()
+    return value or None
+
 def _normalize_track_name(track_name):
     """Normalize track names by stripping featuring suffixes for matching."""
     if not track_name:
@@ -73,23 +84,17 @@ def _normalize_track_name(track_name):
         flags=re.IGNORECASE,
     )
     name = re.sub(r"\s+", " ", name).strip()
-    return name or None
+    return _normalize_to_alnum(name)
 
 def _normalize_album_name(name):
     if not name:
         return None
-    normalized = _normalize_apostrophes(name).lower()
-    normalized = re.sub(r"\s+", " ", normalized).strip()
-    normalized = normalized.strip(string.punctuation + " ")
-    return normalized or None
+    return _normalize_to_alnum(name)
 
 def _normalize_artist_name(name):
     if not name:
         return None
-    normalized = _normalize_apostrophes(name).lower()
-    normalized = re.sub(r"\s+", " ", normalized).strip()
-    normalized = normalized.strip(string.punctuation + " ")
-    return normalized or None
+    return _normalize_to_alnum(name)
 
 
 def _rpc_data(resp, label):
