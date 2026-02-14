@@ -27,9 +27,10 @@ def resolve_album_for_track(
     normalize_track_name,
     normalize_artist_name,
     track_name_normalized=None,
+    return_artist=False,
 ):
     if not artist_name or not track_name:
-        return None
+        return (None, None) if return_artist else None
 
     try:
         track_info = lastfm_get({
@@ -40,14 +41,19 @@ def resolve_album_for_track(
         track_data = track_info.get("track", {}) if isinstance(track_info, dict) else {}
         album_data = track_data.get("album", {}) if isinstance(track_data, dict) else {}
         album_title = album_data.get("title") or album_data.get("name")
+        album_artist = album_data.get("artist")
+        if isinstance(album_artist, dict):
+            album_artist = album_artist.get("name") or album_artist.get("#text")
         if album_title:
+            if return_artist:
+                return album_title, album_artist
             return album_title
     except Exception as exc:
         print(f"Error fetching track info for {track_name} by {artist_name}: {exc}")
 
     sp = spotify_client()
     if not sp:
-        return None
+        return (None, None) if return_artist else None
 
     query = f"track:{track_name} artist:{artist_name}"
     try:
@@ -75,13 +81,20 @@ def resolve_album_for_track(
             album.get("release_date"),
             album.get("release_date_precision"),
         )
-        candidates.append((release_dt, album.get("name")))
+        album_artists = album.get("artists") or []
+        album_artist_name = None
+        if album_artists:
+            album_artist_name = (album_artists[0] or {}).get("name")
+        candidates.append((release_dt, album.get("name"), album_artist_name))
 
     if not candidates:
-        return None
+        return (None, None) if return_artist else None
 
     candidates.sort(key=lambda item: item[0] or datetime.max)
-    return candidates[0][1]
+    best_match = candidates[0]
+    if return_artist:
+        return best_match[1], best_match[2]
+    return best_match[1]
 
 
 def _cli():

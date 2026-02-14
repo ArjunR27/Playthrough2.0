@@ -1,10 +1,10 @@
 import os
 import time
+import argparse
 
 import spotipy
 from supabase import create_client, Client
 
-from album_tracking import backfill_album_images
 from env import load_environment
 from validate_token import get_valid_token
 
@@ -65,5 +65,52 @@ def backfill_artist_genres(batch_size: int = 50, sleep_seconds: float = 0.15) ->
 
     print(f"Updated {updated} artists.")
 
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Backfill helper tasks for album/image and Last.fm data."
+    )
+    parser.add_argument(
+        "--track-name-normalization",
+        action="store_true",
+        help="Backfill track_name_normalized values in Last.fm tables.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Only print pending normalization updates without writing changes.",
+    )
+    parser.add_argument(
+        "--normalization-batch-size",
+        type=int,
+        default=1000,
+        help="Page size for track-name normalization backfill (default: 1000).",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=50,
+        help="Batch size for artist genres backfill (default: 50).",
+    )
+    parser.add_argument(
+        "--sleep-seconds",
+        type=float,
+        default=0.15,
+        help="Seconds to sleep between Spotify artist requests (default: 0.15).",
+    )
+    args = parser.parse_args()
+
+    if args.track_name_normalization:
+        from last_fm_album_tracking import backfill_track_name_normalization
+
+        backfill_track_name_normalization(
+            dry_run=args.dry_run,
+            batch_size=args.normalization_batch_size,
+        )
+        return
+
+    backfill_artist_genres(batch_size=args.batch_size, sleep_seconds=args.sleep_seconds)
+
+
 if __name__ == "__main__":
-    backfill_artist_genres()
+    main()

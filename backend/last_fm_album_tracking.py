@@ -70,16 +70,17 @@ def _normalize_track_name(track_name):
     if not track_name:
         return None
     name = _normalize_apostrophes(track_name).strip().lower()
-    # Remove trailing "(feat...)" or "[feat...]" blocks
+    collaborator_prefix = r"(?:feat\.?|ft\.?|featuring|with|w/)"
+    # Remove trailing "(feat...)" / "(with...)" or "[feat...]" / "[with...]" blocks
     name = re.sub(
-        r"\s*[\(\[]\s*(feat\.?|ft\.?|featuring)\s+.*?[\)\]]\s*$",
+        rf"\s*[\(\[]\s*{collaborator_prefix}\s+.*?[\)\]]\s*$",
         "",
         name,
         flags=re.IGNORECASE,
     )
-    # Remove trailing "- feat..." or "– feat..." suffixes
+    # Remove trailing "- feat...", "– with...", ", featuring..." style suffixes
     name = re.sub(
-        r"\s*[-–—]\s*(feat\.?|ft\.?|featuring)\s+.*$",
+        rf"\s*[-–—,:]\s*{collaborator_prefix}\s+.*$",
         "",
         name,
         flags=re.IGNORECASE,
@@ -721,40 +722,99 @@ def backfill_artist_info():
     
     print("Artist backfill complete!")
 
-def backfill_track_name_normalization():
+def backfill_track_name_normalization(dry_run=False, batch_size=1000):
     """
     One-time function to backfill normalized track names for matching.
     """
-    tracks_resp = supabase.table('last_fm_album_tracks')\
-        .select('album_key, track_number, track_name, track_name_normalized')\
-        .execute()
-    tracks = tracks_resp.data or []
-    print(f"Found {len(tracks)} album tracks to check.")
-    for row in tracks:
-        normalized = _normalize_track_name(row.get("track_name"))
-        if normalized and normalized != row.get("track_name_normalized"):
-            supabase.table('last_fm_album_tracks').update({
-                'track_name_normalized': normalized
-            }).eq('album_key', row.get('album_key'))\
-             .eq('track_number', row.get('track_number'))\
-             .execute()
+    print(f"Backfilling normalized track names with batch_size={batch_size}.")
+    album_track_updates = 0
+    album_track_checked = 0
+    album_offset = 0
+    while True:
+        tracks_resp = supabase.table('last_fm_album_tracks')\
+            .select('album_key, track_number, track_name, track_name_normalized')\
+            .order('album_key')\
+            .order('track_number')\
+            .range(album_offset, album_offset + batch_size - 1)\
+            .execute()
+        tracks = tracks_resp.data or []
+        if not tracks:
+            break
+        album_track_checked += len(tracks)
+        for row in tracks:
+            normalized = _normalize_track_name(row.get("track_name"))
+            if normalized and normalized != row.get("track_name_normalized"):
+                album_track_updates += 1
+                if dry_run:
+                    print(
+                        "[dry-run] last_fm_album_tracks "
+                        f"album_key={row.get('album_key')} "
+                        f"track_number={row.get('track_number')} "
+                        f"{row.get('track_name_normalized')} -> {normalized}"
+                    )
+                    continue
+                supabase.table('last_fm_album_tracks').update({
+                    'track_name_normalized': normalized
+                }).eq('album_key', row.get('album_key'))\
+                 .eq('track_number', row.get('track_number'))\
+                 .execute()
+        if len(tracks) < batch_size:
+            break
+        album_offset += batch_size
 
-    listens_resp = supabase.table('last_fm_listened_tracks')\
-        .select('lastfm_username, played_at, track_name, track_name_normalized')\
-        .execute()
-    listens = listens_resp.data or []
-    print(f"Found {len(listens)} listened tracks to check.")
-    for row in listens:
-        normalized = _normalize_track_name(row.get("track_name"))
-        if normalized and normalized != row.get("track_name_normalized"):
-            supabase.table('last_fm_listened_tracks').update({
-                'track_name_normalized': normalized
-            }).eq('lastfm_username', row.get('lastfm_username'))\
-             .eq('played_at', row.get('played_at'))\
-             .eq('track_name', row.get('track_name'))\
-             .execute()
+    listened_track_updates = 0
+    listened_track_checked = 0
+    listen_offset = 0
+    while True:
+        listens_resp = supabase.table('last_fm_listened_tracks')\
+            .select('lastfm_username, played_at, track_name, track_name_normalized')\
+            .order('lastfm_username')\
+            .order('played_at')\
+            .order('track_name')\
+            .range(listen_offset, listen_offset + batch_size - 1)\
+            .execute()
+        listens = listens_resp.data or []
+        if not listens:
+            break
+        listened_track_checked += len(listens)
+        for row in listens:
+            normalized = _normalize_track_name(row.get("track_name"))
+            if normalized and normalized != row.get("track_name_normalized"):
+                listened_track_updates += 1
+                if dry_run:
+                    print(
+                        "[dry-run] last_fm_listened_tracks "
+                        f"user={row.get('lastfm_username')} "
+                        f"played_at={row.get('played_at')} "
+                        f"{row.get('track_name_normalized')} -> {normalized}"
+                    )
+                    continue
+                supabase.table('last_fm_listened_tracks').update({
+                    'track_name_normalized': normalized
+                }).eq('lastfm_username', row.get('lastfm_username'))\
+                 .eq('played_at', row.get('played_at'))\
+                 .eq('track_name', row.get('track_name'))\
+                 .execute()
+        if len(listens) < batch_size:
+            break
+        listen_offset += batch_size
 
-    print("Track-name normalization backfill complete.")
+    if dry_run:
+        print(
+            "Dry run complete. "
+            f"Checked {album_track_checked} album tracks and "
+            f"{listened_track_checked} listened tracks. "
+            f"Would update {album_track_updates} album tracks and "
+            f"{listened_track_updates} listened tracks."
+        )
+    else:
+        print(
+            "Track-name normalization backfill complete. "
+            f"Checked {album_track_checked} album tracks and "
+            f"{listened_track_checked} listened tracks. "
+            f"Updated {album_track_updates} album tracks and "
+            f"{listened_track_updates} listened tracks."
+        )
 
 def backfill_missing_lastfm_tracks(album_key=None, limit=None, sleep_s=0.25, dry_run=False):
     """
