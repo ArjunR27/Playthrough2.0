@@ -1,0 +1,6 @@
+{
+	"appId": "app.vercel.playthroughfm",
+	"appName": "Playthrough",
+	"webDir": "frontend/out",
+	"packageClassList": []
+}
