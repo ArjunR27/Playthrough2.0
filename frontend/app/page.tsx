@@ -32,7 +32,7 @@ export default function HomePage() {
 
                 // If there's an error, show marketing page
                 setIsChecking(false);
-            } catch (err) {
+            } catch {
                 // On error, show marketing page
                 setIsChecking(false);
             }
@@ -63,7 +63,7 @@ export default function HomePage() {
                 throw new Error(data?.error || "login_failed");
             }
             window.location.href = data.login_url;
-        } catch (err) {
+        } catch {
             setAuthError("Failed to start Spotify login. Please try again.");
             setIsSubmitting(false);
         }
@@ -84,7 +84,7 @@ export default function HomePage() {
                 throw new Error(data?.error || "login_failed");
             }
             window.location.href = data.login_url;
-        } catch (err) {
+        } catch {
             setAuthError("Failed to start Last.fm login. Please try again.");
             setIsSubmitting(false);
         }

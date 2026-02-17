@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     display_name: data?.display_name ?? null,
                     provider: data?.provider ?? "unknown",
                 });
-            } catch (err) {
+            } catch {
                 setIsAuthenticated(false);
                 setUser(null);
             }

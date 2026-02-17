@@ -61,7 +61,7 @@ export default function ProfilePage() {
                 // Even if logout fails, redirect to home
                 router.push('/');
             }
-        } catch (err) {
+        } catch {
             // Dispatch event even on error
             window.dispatchEvent(new Event('auth-change'));
             // On error, still redirect to home

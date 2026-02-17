@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { API_BASE } from "../lib/api";
@@ -27,6 +27,8 @@ type DragState = {
     offsetY: number;
     width: number;
     height: number;
+    lastX: number;
+    lastY: number;
 };
 
 const WALL_PADDING = 24;
@@ -138,16 +140,49 @@ function getLayoutMetrics() {
     };
 }
 
+function getWallColumnCount(wallWidth: number, cardSize: number, padding: number) {
+    const safeWidth = Math.max(0, wallWidth);
+    return Math.max(1, Math.floor((safeWidth - padding) / (cardSize + padding)));
+}
+
 function layoutWallItems(items: WallItem[], wallWidth: number) {
     const { cardSize, rowHeight, padding } = getLayoutMetrics();
-    const safeWidth = Math.max(0, wallWidth);
-    const columns = Math.max(1, Math.floor((safeWidth - padding) / (cardSize + padding)));
+    const columns = getWallColumnCount(wallWidth, cardSize, padding);
 
     return items.map((item, index) => ({
         ...item,
         x: padding + (index % columns) * (cardSize + padding),
         y: padding + Math.floor(index / columns) * (rowHeight + padding),
     }));
+}
+
+function getNearestGridIndex(x: number, y: number, wallWidth: number, itemCount: number) {
+    const { cardSize, rowHeight, padding } = getLayoutMetrics();
+    const columns = getWallColumnCount(wallWidth, cardSize, padding);
+    const columnStep = cardSize + padding;
+    const rowStep = rowHeight + padding;
+    const rawColumn = Math.round((x - padding) / columnStep);
+    const rawRow = Math.round((y - padding) / rowStep);
+    const column = clamp(rawColumn, 0, columns - 1);
+    const row = Math.max(0, rawRow);
+    const maxIndex = Math.max(0, itemCount - 1);
+    return clamp(row * columns + column, 0, maxIndex);
+}
+
+function moveWallItemToIndex(items: WallItem[], albumId: string, toIndex: number) {
+    const fromIndex = items.findIndex((item) => item.album_id === albumId);
+    if (fromIndex < 0) {
+        return items;
+    }
+    const boundedIndex = clamp(toIndex, 0, items.length - 1);
+    if (boundedIndex === fromIndex) {
+        return items;
+    }
+
+    const next = [...items];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(boundedIndex, 0, moved);
+    return next;
 }
 
 function needsReflow(items: WallItem[], wallWidth: number) {
@@ -188,11 +223,11 @@ export default function DashboardPage() {
         setLayoutReady(true);
     }, []);
 
-    const redirectToLogin = async (res: Response) => {
+    const redirectToLogin = useCallback(async (res: Response) => {
         const body = await res.json().catch(() => ({}));
         const loginUrl = body?.login_url ?? `${API_BASE}/`;
         window.location.href = loginUrl;
-    };
+    }, []);
 
     const persistWallId = (nextWallId: string | null) => {
         setWallId(nextWallId);
@@ -231,7 +266,7 @@ export default function DashboardPage() {
         }
 
         fetchTracking();
-    }, []);
+    }, [redirectToLogin]);
 
     const eligibleAlbums = useMemo(() => {
         return [...albums]
@@ -265,7 +300,14 @@ export default function DashboardPage() {
         if (!layoutReady || trackingLoading) {
             return;
         }
-        setWallItems((prev) => prev.filter((item) => eligibleAlbumIds.has(item.album_id)));
+        setWallItems((prev) => {
+            const filtered = prev.filter((item) => eligibleAlbumIds.has(item.album_id));
+            if (filtered.length === prev.length) {
+                return prev;
+            }
+            const wallWidth = wallRef.current?.clientWidth ?? 640;
+            return layoutWallItems(filtered, wallWidth);
+        });
     }, [layoutReady, trackingLoading, eligibleAlbumIds]);
 
     useEffect(() => {
@@ -357,14 +399,18 @@ export default function DashboardPage() {
             const nextY = event.clientY - wallRect.top - dragState.offsetY;
             const maxX = wallRect.width - dragState.width;
             const maxY = wallRect.height - dragState.height;
+            const clampedX = clamp(nextX, 0, Math.max(0, maxX));
+            const clampedY = clamp(nextY, 0, Math.max(0, maxY));
+            dragState.lastX = clampedX;
+            dragState.lastY = clampedY;
 
             setWallItems((prev) =>
                 prev.map((item) =>
                     item.album_id === dragState.album_id
                         ? {
                               ...item,
-                              x: clamp(nextX, 0, Math.max(0, maxX)),
-                              y: clamp(nextY, 0, Math.max(0, maxY)),
+                              x: clampedX,
+                              y: clampedY,
                           }
                         : item
                 )
@@ -372,10 +418,26 @@ export default function DashboardPage() {
         }
 
         function handlePointerUp() {
-            if (dragRef.current) {
-                dragRef.current = null;
-                setDraggingId(null);
+            const dragState = dragRef.current;
+            const wall = wallRef.current;
+            if (!dragState) {
+                return;
             }
+
+            if (wall) {
+                const wallWidth = wall.clientWidth;
+                setWallItems((prev) => {
+                    if (prev.length === 0) {
+                        return prev;
+                    }
+                    const dropIndex = getNearestGridIndex(dragState.lastX, dragState.lastY, wallWidth, prev.length);
+                    const reordered = moveWallItemToIndex(prev, dragState.album_id, dropIndex);
+                    return layoutWallItems(reordered, wallWidth);
+                });
+            }
+
+            dragRef.current = null;
+            setDraggingId(null);
         }
 
         window.addEventListener("pointermove", handlePointerMove);
@@ -441,21 +503,20 @@ export default function DashboardPage() {
     }, [layoutReady, draggingId]);
 
     const wallIds = useMemo(() => new Set(wallItems.map((item) => item.album_id)), [wallItems]);
-    const savedAlbumIdSet = useMemo(() => new Set(savedAlbumIds), [savedAlbumIds]);
     const hasUnsavedChanges = useMemo(() => {
         if (!baselineReady) {
             return false;
         }
-        if (wallIds.size !== savedAlbumIdSet.size) {
+        if (wallItems.length !== savedAlbumIds.length) {
             return true;
         }
-        for (const albumId of wallIds) {
-            if (!savedAlbumIdSet.has(albumId)) {
+        for (let index = 0; index < wallItems.length; index += 1) {
+            if (wallItems[index]?.album_id !== savedAlbumIds[index]) {
                 return true;
             }
         }
         return false;
-    }, [wallIds, savedAlbumIdSet]);
+    }, [baselineReady, savedAlbumIds, wallItems]);
     const wallContentHeight = useMemo(() => {
         if (wallItems.length === 0) {
             return null;
@@ -482,14 +543,9 @@ export default function DashboardPage() {
                 return prev;
             }
             const wall = wallRef.current;
-            const { cardSize, rowHeight, padding } = getLayoutMetrics();
             const wallWidth = wall?.clientWidth ?? 640;
-            const columns = Math.max(1, Math.floor((wallWidth - padding) / (cardSize + padding)));
-            const index = prev.length;
-            const x = padding + (index % columns) * (cardSize + padding);
-            const y = padding + Math.floor(index / columns) * (rowHeight + padding);
-
-            return [...prev, { album_id: album.album_id, x, y }];
+            const appended = [...prev, { album_id: album.album_id, x: 0, y: 0 }];
+            return layoutWallItems(appended, wallWidth);
         });
     };
 
@@ -497,7 +553,14 @@ export default function DashboardPage() {
         if (saveError) {
             setSaveError(null);
         }
-        setWallItems((prev) => prev.filter((item) => item.album_id !== albumId));
+        setWallItems((prev) => {
+            const filtered = prev.filter((item) => item.album_id !== albumId);
+            if (filtered.length === prev.length) {
+                return prev;
+            }
+            const wallWidth = wallRef.current?.clientWidth ?? 640;
+            return layoutWallItems(filtered, wallWidth);
+        });
     };
 
     const handleClearWall = () => {
@@ -632,6 +695,10 @@ export default function DashboardPage() {
         if (!wall) {
             return;
         }
+        const currentItem = wallItems.find((item) => item.album_id === albumId);
+        if (!currentItem) {
+            return;
+        }
         const target = event.currentTarget;
         const targetRect = target.getBoundingClientRect();
 
@@ -641,6 +708,8 @@ export default function DashboardPage() {
             offsetY: event.clientY - targetRect.top,
             width: targetRect.width,
             height: targetRect.height,
+            lastX: currentItem.x,
+            lastY: currentItem.y,
         };
         setDraggingId(albumId);
         target.setPointerCapture(event.pointerId);
@@ -878,7 +947,7 @@ export default function DashboardPage() {
                         </div>
                     ) : filteredEligibleAlbums.length === 0 ? (
                         <div className="text-white/60 text-sm bg-black/30 rounded-2xl p-4">
-                            No matches for "{albumSearch.trim()}".
+                            No matches for &quot;{albumSearch.trim()}&quot;.
                         </div>
                     ) : (
                         <div className="space-y-3 max-h-[65vh] sm:max-h-[72vh] overflow-y-auto pr-1">

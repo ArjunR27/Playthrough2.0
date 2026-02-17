@@ -194,7 +194,7 @@ export default function WallPage() {
                     </div>
                 ) : filteredAlbums.length === 0 ? (
                     <div className="text-center text-white/70 text-lg">
-                        No matches for "{albumSearch.trim()}".
+                        No matches for &quot;{albumSearch.trim()}&quot;.
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
