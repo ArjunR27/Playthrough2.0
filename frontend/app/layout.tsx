@@ -2,6 +2,7 @@ import "./globals.css";
 import Navbar from "./components/Navbar";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Bebas_Neue, Sora } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 
 const displayFont = Bebas_Neue({
   subsets: ["latin"],
@@ -27,6 +28,7 @@ export default function RootLayout({
           <Navbar />
           {children}
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   );
