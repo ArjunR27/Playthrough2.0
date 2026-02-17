@@ -9,3 +9,4 @@ celerybeat-schedule.db
 dump.rdb
 logs
 cookies.txt
+.DS_STORE

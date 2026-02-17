@@ -87,6 +87,10 @@ def main() -> None:
         help="Page size for track-name normalization backfill (default: 1000).",
     )
     parser.add_argument(
+        "--lastfm-username",
+        help="Only normalize listened-track rows for a specific Last.fm username.",
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=50,
@@ -106,6 +110,7 @@ def main() -> None:
         backfill_track_name_normalization(
             dry_run=args.dry_run,
             batch_size=args.normalization_batch_size,
+            lastfm_username=args.lastfm_username,
         )
         return
 

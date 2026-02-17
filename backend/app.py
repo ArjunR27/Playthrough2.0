@@ -18,6 +18,7 @@ from album_tracking import get_albums_completion, get_albums_completion_sorted, 
 from last_fm_album_tracking import (
     get_albums_completion as get_lastfm_albums_completion,
     get_album_tracks as get_lastfm_album_tracks,
+    resolve_canonical_lastfm_album_identity,
 )
 from validate_token import get_spotify_oauth, get_valid_token
 load_environment()
@@ -744,19 +745,35 @@ def recently_listened():
         items = [items]
 
     recents = []
+    canonical_cache = {}
     for item in items:
-        artist_name = item.get("artist", {}).get("#text", "")
-        album_name = item.get("album", {}).get("#text", "")
+        artist_obj = item.get("artist", {})
+        if isinstance(artist_obj, dict):
+            artist_name = artist_obj.get("#text", "")
+        else:
+            artist_name = str(artist_obj or "")
+        album_obj = item.get("album", {})
+        if isinstance(album_obj, dict):
+            album_name = album_obj.get("#text", "")
+        else:
+            album_name = str(album_obj or "")
         track_name = item.get("name", "")
         images = item.get("image", [])
         album_image = _get_image_url(images, ["mega", "extralarge", "large", "medium", "small"])
         played_at = item.get("date", {}).get("#text", "")
-        album_key = _album_key(artist_name, album_name)
+        canonical_identity = resolve_canonical_lastfm_album_identity(
+            artist_name,
+            album_name,
+            track_name,
+            cache=canonical_cache,
+        )
+        canonical_album_name = canonical_identity.get("album_name") or album_name
+        album_key = canonical_identity.get("album_key") or _album_key(artist_name, canonical_album_name)
 
         recents.append({
             "track_name": track_name,
             "artists": [artist_name],
-            "album_name": album_name,
+            "album_name": canonical_album_name,
             "album_type": "album",
             "album_id": album_key or "",
             "album_image": album_image,

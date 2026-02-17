@@ -60,7 +60,7 @@ def resolve_album_for_track(
         results = sp.search(q=query, type="track", limit=10)
     except Exception as exc:
         print(f"[last_fm_album_tracking] Spotify track search failed for {artist_name} - {track_name}: {exc}")
-        return None
+        return (None, None) if return_artist else None
 
     tracks = results.get("tracks", {}).get("items", []) if isinstance(results, dict) else []
     target_track_norm = track_name_normalized or normalize_track_name(track_name)
