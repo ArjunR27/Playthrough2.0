@@ -37,6 +37,7 @@ function AlbumCover({ url }: URLProp): React.ReactElement {
                 alt="Album Cover"
                 width={200}
                 height={200}
+                unoptimized
                 className="object-cover w-full h-full"
             />
         </div>
@@ -273,6 +274,7 @@ export default function WallPage() {
                                             alt={selectedAlbum.album_name}
                                             width={128}
                                             height={128}
+                                            unoptimized
                                             className="object-cover w-full h-full"
                                         />
                                     ) : (

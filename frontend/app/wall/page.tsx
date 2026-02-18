@@ -850,6 +850,7 @@ export default function DashboardPage() {
                                                             alt={album.album_name}
                                                             fill
                                                             sizes="120px"
+                                                            unoptimized
                                                             className="object-cover"
                                                         />
                                                     ) : (
@@ -965,6 +966,7 @@ export default function DashboardPage() {
                                                     alt={album.album_name}
                                                     width={48}
                                                     height={48}
+                                                    unoptimized
                                                     className="object-cover w-full h-full"
                                                 />
                                             ) : (

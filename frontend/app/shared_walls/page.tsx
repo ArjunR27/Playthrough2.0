@@ -194,6 +194,7 @@ export default function SharedWallsPage() {
                                                                     alt={item.album_name || "album"}
                                                                     fill
                                                                     sizes="56px"
+                                                                    unoptimized
                                                                     className="object-cover"
                                                                 />
                                                             ) : (

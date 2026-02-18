@@ -228,6 +228,7 @@ export default function SharedWallDetailPage() {
                                                             alt={albumName}
                                                             fill
                                                             sizes="120px"
+                                                            unoptimized
                                                             className="object-cover"
                                                         />
                                                     ) : (
