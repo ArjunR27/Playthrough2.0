@@ -23,6 +23,38 @@ from last_fm_album_tracking import (
 from validate_token import get_spotify_oauth, get_valid_token
 load_environment()
 
+def allowed_origins():
+    raw = os.getenv("CORS_ORIGINS")
+    if raw:
+        return {origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()}
+    frontend_url = os.getenv("FRONTEND_URL")
+    if frontend_url:
+        return {frontend_url.rstrip("/")}
+    return {"http://127.0.0.1:8080", "http://localhost:8080"}
+
+def origin_from_referer(referer):
+    if not referer:
+        return None
+    try:
+        parsed = urlparse(referer)
+    except ValueError:
+        return None
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+def require_csrf_origin():
+    if not _is_production():
+        return None
+    allowed = allowed_origins()
+    origin = request.headers.get("Origin")
+    referer = request.headers.get("Referer")
+    candidate = (origin or origin_from_referer(referer) or "").rstrip("/")
+    if not candidate or candidate not in allowed:
+        return jsonify({"error": "csrf_blocked"}), 403
+    return None
+
+
 def _parse_cors_origins():
     raw = os.getenv("CORS_ORIGINS")
     if raw:
@@ -948,6 +980,9 @@ def add_wall_item():
     context, error_response = _require_authenticated_user()
     if error_response:
         return error_response
+    csrf_error = require_csrf_origin()
+    if csrf_error:
+        return csrf_error
     provider = context["provider"]
     user_id = context["user_id"]
 
@@ -991,7 +1026,7 @@ def add_wall_item():
             }
         resp = supabase.table("wall_items").upsert(payload).execute()
     except Exception as exc:
-        print(f"Error adding wall item(s) to {wall['wall_id']}: {exc}")
+        # print(f"Error adding wall item(s) to {wall['wall_id']}: {exc}")
         return jsonify({
             "error": "failed to add wall item",
             "detail": str(exc),
@@ -1009,6 +1044,9 @@ def remove_wall_item():
     context, error_response = _require_authenticated_user()
     if error_response:
         return error_response
+    csrf_error = require_csrf_origin()
+    if csrf_error:
+        return csrf_error
     provider = context["provider"]
     user_id = context["user_id"]
 
@@ -1049,6 +1087,9 @@ def update_wall():
     context, error_response = _require_authenticated_user()
     if error_response:
         return error_response
+    csrf_error = require_csrf_origin()
+    if csrf_error:
+        return csrf_error
     provider = context["provider"]
     user_id = context["user_id"]
 
@@ -1084,6 +1125,12 @@ def update_wall():
 
 @app.route("/logout", methods=["POST"])
 def logout():
+    context, error_response = _require_authenticated_user()
+    if error_response:
+        return error_response
+    csrf_error = require_csrf_origin()
+    if csrf_error:
+        return csrf_error
     session.clear()
     return jsonify({"message": "Logged out successfully"}), 200
 
