@@ -1,14 +1,39 @@
 from datetime import datetime
 import time
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Semaphore
+import threading
 from album_tracking import get_recently_listened
 from last_fm_album_tracking import get_recently_listened as get_lastfm_recently_listened
 from supabase import create_client, Client
 import os
 from env import load_environment
 
+class RateLimiter:
+    def __init__(self, rate, period):
+        self.rate = rate
+        self.period = period
+        self._sempahore = Semaphore(rate)
+        self._lock = threading.Lock()
+    
+    def acquire(self):
+        self._sempahore.acquire()
+        threading.Timer(self.period, self._sempahore.release).start()
+    
+    def __enter__(self):
+        self.acquire()
+        return self
+    
+    def __exit__(self, *args):
+        pass
+
+
 load_environment()
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_API_KEY"))
+
+SPOTIFY_RATE_LIMITER = RateLimiter(rate = 5, period = 1.0)
+LASTFM_RATE_LIMITER = RateLimiter(rate = 5, period = 1.0)
+
 
 def _fetch_spotify_users():
     resp = supabase.table("users").select("user_id").execute()
@@ -18,46 +43,54 @@ def _fetch_lastfm_users():
     resp = supabase.table("last_fm_users").select("lastfm_username").execute()
     return [row.get("lastfm_username") for row in (resp.data or []) if row.get("lastfm_username")]
 
-def _run_spotify():
-    users = _fetch_spotify_users()
-    print(f"[cron][spotify] Starting recent listens for {len(users)} user(s)")
-    started_at = time.time()
-    successes = 0
-    failures = 0
-    for user_id in users:
+def _spotify_task(user_id):
+    with SPOTIFY_RATE_LIMITER:
         try:
             get_recently_listened(user_id)
-            successes += 1
-            print(f"[cron][spotify] user_id={user_id} done")
+            return user_id, True, ""
         except Exception as exc:
-            failures += 1
-            print(f"[cron][spotify] user_id={user_id} error: {exc}")
-    duration = time.time() - started_at
-    print(f"[cron][spotify] Completed in {duration:.2f}s (ok={successes}, failed={failures})")
+            return user_id, False, str(exc)
 
-def _run_lastfm():
-    users = _fetch_lastfm_users()
-    print(f"[cron][lastfm] Starting recent listens for {len(users)} user(s)")
-    started_at = time.time()
-    successes = 0
-    failures = 0
-    for username in users:
+def _lastfm_task(username):
+    with LASTFM_RATE_LIMITER:
         try:
             get_lastfm_recently_listened(username)
-            successes += 1
-            print(f"[cron][lastfm] username={username} done")
+            return username, True, ""
         except Exception as exc:
-            failures += 1
-            print(f"[cron][lastfm] username={username} error: {exc}")
+            return username, False, str(exc)
+    
+def _run_parallel(label, users, task_fn, max_workers):
+    print(f"[cron][{label}] Starting recent listens for {len(users)} user(s)")
+    started_at = time.time()
+    successes = failures = 0
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(task_fn, u): u for u in users}
+        for future in as_completed(futures):
+            user, ok, err = future.result()
+            if ok:
+                successes += 1
+                print(f"[cron][{label}] {user} done")
+            else:
+                failures += 1
+                print(f"[cron][{label}] {user} error: {err}")
+
     duration = time.time() - started_at
-    print(f"[cron][lastfm] Completed in {duration:.2f}s (ok={successes}, failed={failures})")
+    print(f"[cron][{label}] Completed in {duration:.2f}s (ok={successes}, failed={failures})")
 
 print("Cron job starting...")
 print(f"Running task at {datetime.now()}")
 
 try:
-    _run_spotify()
-    _run_lastfm()
+    spotify_users = _fetch_spotify_users()
+    lastfm_users = _fetch_lastfm_users()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f1 = executor.submit(_run_parallel, "spotify", spotify_users, _spotify_task, max_workers=5)
+        f2 = executor.submit(_run_parallel, "lastfm", lastfm_users, _lastfm_task, max_workers=5)
+        f1.result()
+        f2.result()
+
     print("Task completed successfully")
 except Exception as e:
     print(f"Error running task: {e}")
