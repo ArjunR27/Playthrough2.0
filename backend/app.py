@@ -1125,12 +1125,7 @@ def update_wall():
 
 @app.route("/logout", methods=["POST"])
 def logout():
-    context, error_response = _require_authenticated_user()
-    if error_response:
-        return error_response
-    csrf_error = require_csrf_origin()
-    if csrf_error:
-        return csrf_error
+    # Logout is safe/idempotent; always clear any existing session state.
     session.clear()
     return jsonify({"message": "Logged out successfully"}), 200
 
