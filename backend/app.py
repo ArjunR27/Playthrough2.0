@@ -18,7 +18,6 @@ from album_tracking import get_albums_completion, get_albums_completion_sorted, 
 from last_fm_album_tracking import (
     get_albums_completion as get_lastfm_albums_completion,
     get_album_tracks as get_lastfm_album_tracks,
-    resolve_canonical_lastfm_album_identity,
 )
 from validate_token import get_spotify_oauth, get_valid_token
 load_environment()
@@ -775,6 +774,52 @@ def recently_listened():
         return jsonify(recents)
 
     username = context.get("lastfm_username") or context.get("user_id")
+    one_hour_ago_dt = datetime.fromtimestamp(time.time() - 3600, tz=timezone.utc)
+
+    # Serve Last.fm recents from ingested listens to avoid expensive request-time
+    # canonical resolution and upstream API fan-out.
+    try:
+        listens_resp = (
+            supabase.table("last_fm_listened_tracks")
+            .select("track_name, artist_name, album_name, album_key, played_at")
+            .eq("lastfm_username", username)
+            .gte("played_at", one_hour_ago_dt.isoformat())
+            .eq("now_playing", False)
+            .order("played_at", desc=True)
+            .limit(50)
+            .execute()
+        )
+        listened_rows = listens_resp.data or []
+    except Exception:
+        app.logger.exception("Failed to fetch stored Last.fm recents for %s", username)
+        listened_rows = []
+
+    if listened_rows:
+        album_keys = [
+            row.get("album_key")
+            for row in listened_rows
+            if row.get("album_key")
+        ]
+        album_meta = _fetch_lastfm_album_meta(list(dict.fromkeys(album_keys)))
+
+        recents = []
+        for row in listened_rows:
+            album_key = row.get("album_key")
+            meta = album_meta.get(album_key) if album_key else None
+            recents.append({
+                "track_name": row.get("track_name") or "",
+                "artists": [row.get("artist_name") or ""],
+                "album_name": (meta or {}).get("album_name") or row.get("album_name") or "",
+                "album_type": "album",
+                "album_id": album_key or "",
+                "album_image": _pick_lastfm_album_image(meta),
+                "album_image_height": None,
+                "album_image_width": None,
+                "played_at": row.get("played_at") or "",
+            })
+        return jsonify(recents)
+
+    # Fallback for users with no ingested rows yet: single Last.fm recent call only.
     one_hour_ago = int(time.time() - 3600)
     try:
         payload = _lastfm_get({
@@ -792,7 +837,6 @@ def recently_listened():
         items = [items]
 
     recents = []
-    canonical_cache = {}
     for item in items:
         artist_obj = item.get("artist", {})
         if isinstance(artist_obj, dict):
@@ -808,21 +852,13 @@ def recently_listened():
         images = item.get("image", [])
         album_image = _get_image_url(images, ["mega", "extralarge", "large", "medium", "small"])
         played_at = item.get("date", {}).get("#text", "")
-        canonical_identity = resolve_canonical_lastfm_album_identity(
-            artist_name,
-            album_name,
-            track_name,
-            cache=canonical_cache,
-        )
-        canonical_album_name = canonical_identity.get("album_name") or album_name
-        album_key = canonical_identity.get("album_key") or _album_key(artist_name, canonical_album_name)
 
         recents.append({
             "track_name": track_name,
             "artists": [artist_name],
-            "album_name": canonical_album_name,
+            "album_name": album_name,
             "album_type": "album",
-            "album_id": album_key or "",
+            "album_id": _album_key(artist_name, album_name) or "",
             "album_image": album_image,
             "album_image_height": None,
             "album_image_width": None,
