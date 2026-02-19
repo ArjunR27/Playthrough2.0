@@ -32,7 +32,7 @@ type DragState = {
 };
 
 const WALL_PADDING = 24;
-const TEXT_BLOCK_HEIGHT = 40;
+const TEXT_BLOCK_HEIGHT = 48;
 const WALL_TRACKING_CACHE_KEY = "playthrough.wall.tracking.v1";
 const WALL_SAVED_CACHE_KEY = "playthrough.wall.saved.v1";
 
@@ -838,7 +838,7 @@ export default function DashboardPage() {
                                         }}
                                         onPointerDown={handlePointerDown(item.album_id)}
                                     >
-                                        <div className="flex flex-col items-center">
+                                        <div className="flex flex-col items-center w-[140px] sm:w-[150px] md:w-[175px]">
                                             <div className="relative w-[140px] h-[140px] sm:w-[150px] sm:h-[150px] md:w-[175px] md:h-[175px]">
                                                 <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#111] via-[#1a1a1a] to-[#050505] shadow-[0_10px_25px_rgba(0,0,0,0.55)]" />
                                                 <div className="absolute inset-2 rounded-full border border-white/10" />
@@ -872,11 +872,11 @@ export default function DashboardPage() {
                                                     x
                                                 </button>
                                             </div>
-                                            <div className="mt-2 text-center">
-                                                <div className="text-[11px] uppercase tracking-[0.2em] text-white/80">
+                                            <div className="mt-2 h-10 w-full overflow-hidden text-center">
+                                                <div className="truncate whitespace-nowrap text-[11px] uppercase tracking-[0.2em] text-white/80">
                                                     {album.album_name}
                                                 </div>
-                                                <div className="text-[10px] uppercase tracking-[0.25em]" style={{ color: "var(--wall-gold)" }}>
+                                                <div className="truncate whitespace-nowrap text-[10px] uppercase tracking-[0.25em]" style={{ color: "var(--wall-gold)" }}>
                                                     {album.artist}
                                                 </div>
                                             </div>
