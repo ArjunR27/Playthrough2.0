@@ -3,44 +3,20 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_BASE } from './lib/api';
+import { useAuth } from './contexts/AuthContext';
 
 export default function HomePage() {
-    const [isChecking, setIsChecking] = useState(true);
     const [authError, setAuthError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isHelpOpen, setIsHelpOpen] = useState(false); 
     const router = useRouter();
+    const { isAuthenticated } = useAuth();
 
     useEffect(() => {
-        async function checkAuth() {
-            try {
-                const res = await fetch(`${API_BASE}/tracking`, {
-                    cache: "no-store",
-                    credentials: "include",
-                });
-
-                if (res.status === 401) {
-                    // Not logged in, show marketing page
-                    setIsChecking(false);
-                    return;
-                }
-
-                if (res.ok) {
-                    // Logged in, redirect to wall
-                    router.push('/wall');
-                    return;
-                }
-
-                // If there's an error, show marketing page
-                setIsChecking(false);
-            } catch {
-                // On error, show marketing page
-                setIsChecking(false);
-            }
+        if (isAuthenticated === true) {
+            router.push('/wall');
         }
-
-        checkAuth();
-    }, [router]);
+    }, [isAuthenticated, router]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -92,7 +68,7 @@ export default function HomePage() {
     };
 
     // Show loading state while checking auth
-    if (isChecking) {
+    if (isAuthenticated === null) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#191414] to-[#1DB954]">
                 <div className="text-white text-xl">Loading...</div>

@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const task = (async () => {
             try {
-                const res = await fetch(`${API_BASE}/profile`, {
+                const res = await fetch(`${API_BASE}/api/session`, {
                     cache: "no-store",
                     credentials: "include",
                 });

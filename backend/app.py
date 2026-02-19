@@ -677,6 +677,21 @@ def lastfm_callback():
 
     return redirect(f"{frontend_url}/wall?auth=success")
 
+@app.route("/api/session")
+def session_info():
+    context, error_response = _require_authenticated_user()
+    if error_response:
+        return error_response
+
+    provider = context["provider"]
+    user_id = context["user_id"]
+
+    return jsonify({
+        "provider": provider,
+        "id": user_id,
+        "display_name": _get_owner_display_name(user_id, provider),
+    })
+
 @app.route("/profile")
 def profile():
     context, error_response = _require_authenticated_user()
