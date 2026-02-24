@@ -85,6 +85,20 @@ def _normalize_track_name(track_name, album_name=None):
         name,
         flags=re.IGNORECASE,
     )
+    bonus_suffix = r"(?:bonus(?:\s+track)?)"
+    # Collapse edition markers that should map to canonical album-track names.
+    name = re.sub(
+        rf"\s*[\(\[]\s*{bonus_suffix}\s*[\)\]]\s*$",
+        "",
+        name,
+        flags=re.IGNORECASE,
+    )
+    name = re.sub(
+        rf"\s*[-–—]\s*{bonus_suffix}\s*$",
+        "",
+        name,
+        flags=re.IGNORECASE,
+    )
 
     # Remove trailing artist-credit parentheses, e.g. "(EI8HT & Offset)".
     # Keep musical version tags like "(remix)" or "(live)".
@@ -626,7 +640,7 @@ def track_all_users_recently_listened_sync():
     print("[last_fm_album_tracking] Finished recent listens run")
 
 
-def get_recently_listened(username):
+def get_recently_listened(username, log_tracks=False):
     """Get tracks listened to in the last hour for a specific user"""
     twenty_five_minutes = int(time.time() - 1500)
     
@@ -674,7 +688,7 @@ def get_recently_listened(username):
         album_key = canonical_identity.get("album_key")
         if not canonical_album_name or not album_key:
             continue
-        track_name_normalized = _normalize_track_name(track_name, album_name=canonical_album_name)
+        track_name_normalized = _normalize_track_name(track_name)
 
         old_key = _album_key(artist_name, canonical_album_name)
         if old_key and old_key != album_key:
@@ -811,6 +825,13 @@ def get_recently_listened(username):
                     'total_tracks': track_count
                 }).eq('album_key', album_key).execute()
                 album_state["total_tracks"] = track_count
+
+        if log_tracks:
+            print(
+                "[last_fm_album_tracking] upserting track "
+                f"user={username} artist={artist_name} album={canonical_album_name} "
+                f"track={track_name} played_at={played_at.isoformat()}"
+            )
 
         # Record listened track
         supabase.table('last_fm_listened_tracks').upsert({
@@ -1027,7 +1048,7 @@ def backfill_track_name_normalization(dry_run=False, batch_size=1000, lastfm_use
     listen_offset = 0
     while True:
         listens_query = supabase.table('last_fm_listened_tracks')\
-            .select('lastfm_username, played_at, track_name, album_name, track_name_normalized')\
+            .select('lastfm_username, played_at, track_name, track_name_normalized')\
             .order('lastfm_username')\
             .order('played_at')\
             .order('track_name')\
@@ -1040,10 +1061,7 @@ def backfill_track_name_normalization(dry_run=False, batch_size=1000, lastfm_use
             break
         listened_track_checked += len(listens)
         for row in listens:
-            normalized = _normalize_track_name(
-                row.get("track_name"),
-                album_name=row.get("album_name"),
-            )
+            normalized = _normalize_track_name(row.get("track_name"))
             if normalized and normalized != row.get("track_name_normalized"):
                 listened_track_updates += 1
                 if dry_run:
