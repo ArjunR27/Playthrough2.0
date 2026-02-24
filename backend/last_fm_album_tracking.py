@@ -641,14 +641,14 @@ def track_all_users_recently_listened_sync():
 
 
 def get_recently_listened(username, log_tracks=False):
-    """Get tracks listened to in the last hour for a specific user"""
-    twenty_five_minutes = int(time.time() - 1500)
+    """Get tracks listened to in the last 35 minutes for a specific user."""
+    thirty_five_minutes = int(time.time() - 2100)
     
     try:
         payload = _lastfm_get({
             "method": "user.getrecenttracks",
             "user": username,
-            "from": twenty_five_minutes,
+            "from": thirty_five_minutes,
             "limit": 50,
         })
     except (requests.RequestException, ValueError) as e:
