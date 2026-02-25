@@ -88,7 +88,7 @@ try:
     # Keep per-provider threading, but run providers consecutively to reduce
     # cross-service contention on shared clients/connections.
     _run_parallel("spotify", spotify_users, _spotify_task, max_workers=5)
-    _run_parallel("lastfm", lastfm_users, _lastfm_task, max_workers=5)
+    _run_parallel("lastfm", lastfm_users, _lastfm_task, max_workers=2)
 
     print("Task completed successfully")
 except Exception as e:
