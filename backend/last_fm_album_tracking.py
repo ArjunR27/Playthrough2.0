@@ -538,15 +538,7 @@ def _get_album_track_count(album_key):
 
 def _insert_lastfm_album_tracks(album_key, tracks, artist_name, seen_artists=None):
     track_rows = []
-    track_artist_rows = []
-    local_artists = set()
     for idx, track in enumerate(tracks, start=1):
-        track_artist = track.get("artist", {})
-        if isinstance(track_artist, dict):
-            track_artist_name = track_artist.get("name", artist_name)
-        else:
-            track_artist_name = artist_name
-
         duration = track.get("duration")
         if duration:
             try:
@@ -563,30 +555,8 @@ def _insert_lastfm_album_tracks(album_key, tracks, artist_name, seen_artists=Non
             "duration_sec": duration
         })
 
-        track_artist_rows.append({
-            'album_key': album_key,
-            'track_number': idx,
-            'artist_name': track_artist_name,
-            'artist_order': 1
-        })
-        if track_artist_name:
-            local_artists.add(track_artist_name)
-
     if track_rows:
         supabase.table("last_fm_album_tracks").upsert(track_rows).execute()
-    if local_artists:
-        supabase.table("last_fm_artists").upsert([
-            {"artist_name": artist} for artist in local_artists
-        ]).execute()
-    if track_artist_rows:
-        supabase.table('last_fm_track_artists').upsert(track_artist_rows).execute()
-
-    if seen_artists is None:
-        seen_artists = set()
-    for artist in local_artists:
-        if artist not in seen_artists:
-            _upsert_artist(artist)
-            seen_artists.add(artist)
 
     return len(track_rows)
 
@@ -712,12 +682,6 @@ def get_recently_listened(username, log_tracks=False):
             played_at = datetime.now(timezone.utc)
 
         images = item.get("image", [])
-
-        # Ensure both track and canonical album artists exist.
-        for candidate_artist in (artist_name, canonical_artist_name):
-            if candidate_artist and candidate_artist not in seen_artists:
-                _upsert_artist(candidate_artist)
-                seen_artists.add(candidate_artist)
 
         if album_key in album_cache:
             album_state = album_cache[album_key]
