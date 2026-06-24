@@ -7,6 +7,16 @@ create table if not exists public.maintenance_state (
     updated_at timestamptz not null default now()
 );
 
+create table if not exists public.last_fm_completed_albums (
+    lastfm_username text not null,
+    album_key text not null,
+    completed_at timestamptz not null default now(),
+    album_name text,
+    artist_name text,
+    total_tracks integer,
+    primary key (lastfm_username, album_key)
+);
+
 create index if not exists idx_last_fm_listened_tracks_played_at
     on public.last_fm_listened_tracks (played_at);
 
@@ -15,6 +25,9 @@ create index if not exists idx_last_fm_listened_tracks_album_key
 
 create index if not exists idx_wall_items_provider_album_id
     on public.wall_items (provider, album_id);
+
+create index if not exists idx_last_fm_completed_albums_album_key
+    on public.last_fm_completed_albums (album_key);
 
 drop function if exists public.get_last_fm_album_completion(text);
 drop function if exists public.get_last_fm_album_tracks(text, text);
@@ -48,34 +61,72 @@ as $$
     current_albums as (
         select distinct album_key
         from current_listens
+    ),
+    current_progress as (
+        select
+            a.album_key::text,
+            a.album_name::text,
+            a.artist_name::text as primary_artist,
+            count(distinct t.track_number) filter (
+                where cl.track_name_normalized is not null
+            )::bigint as listened,
+            coalesce(nullif(a.total_tracks, 0), count(t.track_number)::integer) as total,
+            coalesce(a.image_mega, a.image_extralarge, a.image_large)::text as album_image
+        from current_albums ca
+        join public.last_fm_albums a
+          on a.album_key = ca.album_key
+        left join public.last_fm_album_tracks t
+          on t.album_key = a.album_key
+        left join current_listens cl
+          on cl.album_key = t.album_key
+         and cl.track_name_normalized = t.track_name_normalized
+        group by
+            a.album_key,
+            a.album_name,
+            a.artist_name,
+            a.total_tracks,
+            a.image_mega,
+            a.image_extralarge,
+            a.image_large
+        having coalesce(nullif(a.total_tracks, 0), count(t.track_number)::integer) >= 1
+    ),
+    archived_completed as (
+        select
+            c.album_key::text,
+            coalesce(a.album_name, c.album_name)::text as album_name,
+            coalesce(a.artist_name, c.artist_name)::text as primary_artist,
+            coalesce(nullif(a.total_tracks, 0), nullif(c.total_tracks, 0), count(t.track_number)::integer)::bigint as listened,
+            coalesce(nullif(a.total_tracks, 0), nullif(c.total_tracks, 0), count(t.track_number)::integer) as total,
+            coalesce(a.image_mega, a.image_extralarge, a.image_large)::text as album_image
+        from public.last_fm_completed_albums c
+        left join public.last_fm_albums a
+          on a.album_key = c.album_key
+        left join public.last_fm_album_tracks t
+          on t.album_key = c.album_key
+        where c.lastfm_username = p_lastfm_username
+        group by
+            c.album_key,
+            c.album_name,
+            c.artist_name,
+            c.total_tracks,
+            a.album_name,
+            a.artist_name,
+            a.total_tracks,
+            a.image_mega,
+            a.image_extralarge,
+            a.image_large
     )
-    select
-        a.album_key::text,
-        a.album_name::text,
-        a.artist_name::text as primary_artist,
-        count(distinct t.track_number) filter (
-            where cl.track_name_normalized is not null
-        )::bigint as listened,
-        coalesce(nullif(a.total_tracks, 0), count(t.track_number)::integer) as total,
-        coalesce(a.image_mega, a.image_extralarge, a.image_large)::text as album_image
-    from current_albums ca
-    join public.last_fm_albums a
-      on a.album_key = ca.album_key
-    left join public.last_fm_album_tracks t
-      on t.album_key = a.album_key
-    left join current_listens cl
-      on cl.album_key = t.album_key
-     and cl.track_name_normalized = t.track_name_normalized
-    group by
-        a.album_key,
-        a.album_name,
-        a.artist_name,
-        a.total_tracks,
-        a.image_mega,
-        a.image_extralarge,
-        a.image_large
-    having coalesce(nullif(a.total_tracks, 0), count(t.track_number)::integer) >= 1
-    order by listened desc, a.album_name asc;
+    select *
+      from archived_completed
+    union all
+    select cp.*
+      from current_progress cp
+     where not exists (
+         select 1
+           from archived_completed ac
+          where ac.album_key = cp.album_key
+     )
+    order by listened desc, album_name asc;
 $$;
 
 create or replace function public.get_last_fm_album_tracks(
@@ -101,11 +152,19 @@ as $$
           and l.album_key = p_album_key
           and l.played_at >= b.month_start
           and l.track_name_normalized is not null
+    ),
+    archived_album as (
+        select exists (
+            select 1
+              from public.last_fm_completed_albums c
+             where c.lastfm_username = p_lastfm_username
+               and c.album_key = p_album_key
+        ) as is_archived
     )
     select
         t.track_number::integer,
         t.track_name::text,
-        exists (
+        (select is_archived from archived_album) or exists (
             select 1
             from current_listens cl
             where cl.track_name_normalized = t.track_name_normalized
@@ -131,6 +190,7 @@ as $$
 declare
     v_month_start timestamptz;
     v_previous_month text;
+    v_archive_start timestamptz;
     v_count bigint;
 begin
     v_month_start := (to_date(p_month_key || '-01', 'YYYY-MM-DD')::timestamp at time zone 'UTC');
@@ -139,6 +199,10 @@ begin
       into v_previous_month
       from public.maintenance_state
      where state_key = 'lastfm_monthly_retention_month';
+
+    if v_previous_month is not null then
+        v_archive_start := (to_date(v_previous_month || '-01', 'YYYY-MM-DD')::timestamp at time zone 'UTC');
+    end if;
 
     if not p_dry_run and v_previous_month = p_month_key then
         table_name := 'maintenance_state';
@@ -152,6 +216,78 @@ begin
         album_key text primary key
     ) on commit drop;
 
+    create temp table completed_lastfm_albums_to_archive (
+        lastfm_username text,
+        album_key text,
+        album_name text,
+        artist_name text,
+        total_tracks integer,
+        primary key (lastfm_username, album_key)
+    ) on commit drop;
+
+    if v_archive_start is not null then
+        insert into completed_lastfm_albums_to_archive (
+            lastfm_username,
+            album_key,
+            album_name,
+            artist_name,
+            total_tracks
+        )
+        with archive_listens as (
+            select distinct
+                l.lastfm_username,
+                l.album_key,
+                l.track_name_normalized
+            from public.last_fm_listened_tracks l
+            where l.played_at >= v_archive_start
+              and l.played_at < v_month_start
+              and l.album_key is not null
+              and l.track_name_normalized is not null
+        ),
+        archive_albums as (
+            select distinct
+                lastfm_username,
+                album_key
+            from archive_listens
+        ),
+        archive_progress as (
+            select
+                aa.lastfm_username,
+                a.album_key,
+                a.album_name,
+                a.artist_name,
+                coalesce(nullif(a.total_tracks, 0), count(distinct t.track_number)::integer) as total_tracks,
+                count(distinct t.track_number) filter (
+                    where matched.track_name_normalized is not null
+                ) as listened_tracks
+            from archive_albums aa
+            join public.last_fm_albums a
+              on a.album_key = aa.album_key
+            left join public.last_fm_album_tracks t
+              on t.album_key = a.album_key
+            left join archive_listens matched
+              on matched.lastfm_username = aa.lastfm_username
+             and matched.album_key = t.album_key
+             and matched.track_name_normalized = t.track_name_normalized
+            group by
+                aa.lastfm_username,
+                a.album_key,
+                a.album_name,
+                a.artist_name,
+                a.total_tracks
+        )
+        select
+            lastfm_username,
+            album_key,
+            album_name,
+            artist_name,
+            total_tracks
+        from archive_progress
+        where total_tracks >= 1
+          and listened_tracks >= total_tracks
+        on conflict do nothing;
+    end if;
+
     insert into retained_lastfm_album_keys (album_key)
     select album_key
       from (
@@ -164,10 +300,32 @@ begin
             from public.wall_items wi
            where wi.provider = 'lastfm'
              and wi.album_id is not null
+          union
+          select distinct c.album_key
+            from public.last_fm_completed_albums c
+           where c.album_key is not null
+          union
+          select distinct c.album_key
+            from completed_lastfm_albums_to_archive c
+           where c.album_key is not null
       ) retained
     on conflict do nothing;
 
     if p_dry_run then
+        select count(*)
+          into v_count
+          from completed_lastfm_albums_to_archive c
+         where not exists (
+             select 1
+               from public.last_fm_completed_albums existing
+              where existing.lastfm_username = c.lastfm_username
+                and existing.album_key = c.album_key
+         );
+        table_name := 'last_fm_completed_albums';
+        action := 'would_archive_completed';
+        row_count := v_count;
+        return next;
+
         select count(*)
           into v_count
           from public.last_fm_listened_tracks
@@ -217,6 +375,33 @@ begin
 
         return;
     end if;
+
+    insert into public.last_fm_completed_albums (
+        lastfm_username,
+        album_key,
+        completed_at,
+        album_name,
+        artist_name,
+        total_tracks
+    )
+    select
+        lastfm_username,
+        album_key,
+        now(),
+        album_name,
+        artist_name,
+        total_tracks
+    from completed_lastfm_albums_to_archive
+    on conflict (lastfm_username, album_key) do update
+        set completed_at = least(public.last_fm_completed_albums.completed_at, excluded.completed_at),
+            album_name = coalesce(public.last_fm_completed_albums.album_name, excluded.album_name),
+            artist_name = coalesce(public.last_fm_completed_albums.artist_name, excluded.artist_name),
+            total_tracks = coalesce(public.last_fm_completed_albums.total_tracks, excluded.total_tracks);
+    get diagnostics v_count = row_count;
+    table_name := 'last_fm_completed_albums';
+    action := 'archived_completed';
+    row_count := v_count;
+    return next;
 
     delete from public.last_fm_listened_tracks
      where played_at < v_month_start;
