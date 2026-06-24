@@ -5,6 +5,7 @@ from threading import Semaphore
 import threading
 from album_tracking import get_recently_listened
 from last_fm_album_tracking import get_recently_listened as get_lastfm_recently_listened
+from monthly_retention import run_lastfm_monthly_retention
 from supabase import create_client, Client
 import os
 from env import load_environment
@@ -13,12 +14,12 @@ class RateLimiter:
     def __init__(self, rate, period):
         self.rate = rate
         self.period = period
-        self._sempahore = Semaphore(rate)
+        self._semaphore = Semaphore(rate)
         self._lock = threading.Lock()
     
     def acquire(self):
-        self._sempahore.acquire()
-        threading.Timer(self.period, self._sempahore.release).start()
+        self._semaphore.acquire()
+        threading.Timer(self.period, self._semaphore.release).start()
     
     def __enter__(self):
         self.acquire()
@@ -78,10 +79,13 @@ def _run_parallel(label, users, task_fn, max_workers):
     duration = time.time() - started_at
     print(f"[cron][{label}] Completed in {duration:.2f}s (ok={successes}, failed={failures})")
 
-print("Cron job starting...")
-print(f"Running task at {datetime.now()}")
 
-try:
+def run_cron_once():
+    print("Cron job starting...")
+    print(f"Running task at {datetime.now()}")
+
+    run_lastfm_monthly_retention(supabase)
+
     spotify_users = _fetch_spotify_users()
     lastfm_users = _fetch_lastfm_users()
 
@@ -91,5 +95,10 @@ try:
     _run_parallel("lastfm", lastfm_users, _lastfm_task, max_workers=2)
 
     print("Task completed successfully")
-except Exception as e:
-    print(f"Error running task: {e}")
+
+
+if __name__ == "__main__":
+    try:
+        run_cron_once()
+    except Exception as e:
+        print(f"Error running task: {e}")
