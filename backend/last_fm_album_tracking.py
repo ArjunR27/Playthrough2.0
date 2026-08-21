@@ -715,6 +715,11 @@ def get_recently_listened(username, log_tracks=False):
             if isinstance(tracks, dict):
                 tracks = [tracks]
 
+            # last_fm_albums.artist_name has a FK into last_fm_artists; must exist first.
+            if canonical_artist_name not in seen_artists:
+                _upsert_artist(canonical_artist_name)
+                seen_artists.add(canonical_artist_name)
+
             # Insert album
             supabase.table('last_fm_albums').upsert({
                 'album_key': album_key,

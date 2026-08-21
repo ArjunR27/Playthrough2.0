@@ -9,6 +9,18 @@ def _env_bool(name, default=False):
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+# PostgREST reports PGRST202 when the function is absent from the schema cache;
+# Postgres reports 42883 (undefined_function) when no matching signature exists.
+_MISSING_FUNCTION_MARKERS = ("PGRST202", "42883")
+
+
+def _is_missing_function(exc):
+    code = getattr(exc, "code", None)
+    if code in _MISSING_FUNCTION_MARKERS:
+        return True
+    return any(marker in str(exc) for marker in _MISSING_FUNCTION_MARKERS)
+
+
 def run_lastfm_monthly_retention(supabase):
     """Run the Postgres-side Last.fm monthly retention job if installed."""
     if _env_bool("LASTFM_MONTHLY_RETENTION_DISABLED", False):
@@ -28,10 +40,17 @@ def run_lastfm_monthly_retention(supabase):
             },
         ).execute()
     except Exception as exc:
-        print(
-            "[retention][lastfm] Skipping monthly retention; "
-            f"install SQL migration first. error={exc}"
-        )
+        if _is_missing_function(exc):
+            print(
+                "[retention][lastfm] Skipping monthly retention; "
+                f"install SQL migration first. error={exc}"
+            )
+        else:
+            print(
+                "[retention][lastfm] ERROR: monthly retention failed "
+                f"(month={month_key}, mode={'dry-run' if dry_run else 'apply'}): "
+                f"{type(exc).__name__}: {exc}"
+            )
         return []
 
     rows = resp.data or []

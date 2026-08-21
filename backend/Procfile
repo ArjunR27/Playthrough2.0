@@ -1,2 +1,2 @@
 web: gunicorn app:app --bind 0.0.0.0:${PORT:-3000}
-cron: python run_cron.py
+cron: python run_cron_worker.py
